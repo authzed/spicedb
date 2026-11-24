@@ -108,14 +108,14 @@ definition document {
 					name:  "read schema",
 					query: `SELECT * FROM schema`,
 					expectedRows: [][]any{
-						{`definition document {
+						{`definition user {}
+
+definition document {
 	relation reader: user
 	relation writer: user
 	permission edit = writer
 	permission view = reader + edit
-}
-
-definition user {}`},
+}`},
 					},
 					expectedResponseTag: "SELECT 1",
 				},
@@ -138,15 +138,15 @@ definition document {
 					name:  "read updated schema",
 					query: `SELECT * FROM schema`,
 					expectedRows: [][]any{
-						{`definition document {
+						{`definition user {}
+
+definition document {
 	relation reader: user
 	relation writer: user
 	relation owner: user
 	permission edit = writer + owner
 	permission view = reader + edit
-}
-
-definition user {}`},
+}`},
 					},
 					expectedResponseTag: "SELECT 1",
 				},

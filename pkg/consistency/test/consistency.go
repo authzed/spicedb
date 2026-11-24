@@ -127,7 +127,7 @@ func ConsistencyForEngine(t *testing.T, engineID string, tester dstest.Datastore
 			ds := indexcheck.WrapWithIndexCheckingDatastoreProxyIfApplicable(baseds)
 
 			// Write the schema and relationships.
-			dl := datalayer.NewDataLayer(ds)
+			dl := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteBoth))
 			populated, _, err := validationfile.PopulateFromFS(t.Context(), dl, types.Default.TypeSet, testconfigs.FS, filePath)
 			require.NoError(t, err)
 

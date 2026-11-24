@@ -57,6 +57,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.BootstrapTimeout = c.BootstrapTimeout
 		to.CaveatTypeSet = c.CaveatTypeSet
 		to.BootstrapSchemaMode = c.BootstrapSchemaMode
+		to.SchemaHashReadsDisabled = c.SchemaHashReadsDisabled
 		to.RequestHedgingEnabled = c.RequestHedgingEnabled
 		to.RequestHedgingInitialSlowValue = c.RequestHedgingInitialSlowValue
 		to.RequestHedgingMaxRequests = c.RequestHedgingMaxRequests
@@ -197,6 +198,7 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["BootstrapSchemaMode"] = c.BootstrapSchemaMode
 	}
+	debugMap["SchemaHashReadsDisabled"] = c.SchemaHashReadsDisabled
 	debugMap["RequestHedgingEnabled"] = c.RequestHedgingEnabled
 	if dm, ok := any(&c.RequestHedgingInitialSlowValue).(interface {
 		DebugMap() map[string]any
@@ -549,6 +551,13 @@ func WithCaveatTypeSet(caveatTypeSet *types.TypeSet) ConfigOption {
 func WithBootstrapSchemaMode(bootstrapSchemaMode schemamode.SchemaMode) ConfigOption {
 	return func(c *Config) {
 		c.BootstrapSchemaMode = bootstrapSchemaMode
+	}
+}
+
+// WithSchemaHashReadsDisabled returns an option that can set SchemaHashReadsDisabled on a Config
+func WithSchemaHashReadsDisabled(schemaHashReadsDisabled bool) ConfigOption {
+	return func(c *Config) {
+		c.SchemaHashReadsDisabled = schemaHashReadsDisabled
 	}
 }
 

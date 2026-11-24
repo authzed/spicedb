@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	mysqlCommon "github.com/authzed/spicedb/internal/datastore/mysql/common"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -22,6 +23,10 @@ func init() {
 }
 
 func populateSchemaTablesFunc(ctx context.Context, wrapper TxWrapper) error {
+	return populateSchemaTables(ctx, wrapper, false)
+}
+
+func populateSchemaTables(ctx context.Context, wrapper TxWrapper, replaceExisting bool) error {
 	tx := wrapper.tx
 
 	// Read all existing namespaces (not deleted ones)
@@ -99,8 +104,23 @@ func populateSchemaTablesFunc(ctx context.Context, wrapper TxWrapper) error {
 		return fmt.Errorf("error iterating caveats: %w", err)
 	}
 
-	// If there are no namespaces or caveats, skip migration
-	if len(namespaces) == 0 && len(caveats) == 0 {
+	var stored common.UnifiedSchemaState
+	if replaceExisting {
+		var storedHash []byte
+		//nolint:gosec // Table names come from validated internal schema configuration.
+		query := fmt.Sprintf(`SELECT
+				(SELECT hash FROM %s WHERE name = ? AND deleted_transaction = 9223372036854775807),
+				EXISTS (SELECT 1 FROM %s WHERE name = ? AND deleted_transaction = 9223372036854775807)`,
+			wrapper.tables.SchemaRevision(), wrapper.tables.Schema())
+		if err := tx.QueryRowContext(ctx, query, schemaRevisionName, unifiedSchemaName).Scan(&storedHash, &stored.Exists); err != nil {
+			return fmt.Errorf("failed to read unified schema state: %w", err)
+		}
+		stored.Hash = string(storedHash)
+	}
+
+	// Leave a pristine database without a stored schema. An empty legacy schema
+	// must still replace an existing, stale unified copy during refresh.
+	if len(namespaces) == 0 && len(caveats) == 0 && !stored.Exists {
 		return nil
 	}
 
@@ -149,6 +169,20 @@ func populateSchemaTablesFunc(ctx context.Context, wrapper TxWrapper) error {
 	newTxnID, err := mysqlCommon.InsertNewTransaction(ctx, tx, wrapper.tables.RelationTupleTransaction(), nil)
 	if err != nil {
 		return fmt.Errorf("failed to create transaction for schema population: %w", err)
+	}
+
+	if replaceExisting {
+		for _, entry := range []struct{ table, name string }{
+			{wrapper.tables.Schema(), unifiedSchemaName},
+			{wrapper.tables.SchemaRevision(), schemaRevisionName},
+		} {
+			//nolint:gosec // Table names come from validated internal schema configuration.
+			query := fmt.Sprintf(`UPDATE %s SET deleted_transaction = ?
+				WHERE name = ? AND deleted_transaction = 9223372036854775807`, entry.table)
+			if _, err := tx.ExecContext(ctx, query, newTxnID, entry.name); err != nil {
+				return err
+			}
+		}
 	}
 
 	// Insert schema chunks

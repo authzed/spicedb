@@ -93,6 +93,7 @@ func TestDefaultConfig(t *testing.T) {
 		require.False(t, mergedConfig.HTTPGateway.HTTPEnabled)
 		require.Equal(t, ":8443", mergedConfig.HTTPGateway.HTTPAddress)
 		require.Equal(t, "memory", mergedConfig.DatastoreConfig.Engine)
+		require.Equal(t, "read-new-write-both", mergedConfig.ExperimentalSchemaMode)
 		require.Equal(t, uint16(1024), mergedConfig.DatastoreConfig.WatchBufferLength)
 	})
 }

@@ -114,6 +114,11 @@ func (mcc *mysqlGarbageCollector) DeleteBeforeTx(
 		return removed, spiceerrors.MustBugf("mysqlGarbageCollector is closed")
 	}
 
+	// A datastore with no transactions older than the cutoff has nothing to collect.
+	if txID == datastore.NoRevision {
+		return removed, nil
+	}
+
 	// Delete any relationship rows with deleted_transaction <= the transaction ID.
 	removed.Relationships, err = mcc.batchDelete(ctx, mcc.mds.driver.RelationTuple(), sq.LtOrEq{colDeletedTxn: txID})
 	if err != nil {

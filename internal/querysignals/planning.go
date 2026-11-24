@@ -1,7 +1,10 @@
 package querysignals
 
 import (
+	"errors"
+
 	"github.com/authzed/spicedb/internal/dispatch"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/query/queryopt"
@@ -10,18 +13,31 @@ import (
 	"github.com/authzed/spicedb/pkg/query/signals/signal"
 )
 
-// Bind uses an already-loaded schema. Legacy readers receive request-local evidence.
+// ErrLegacySchemaUnsupported is returned when query planning is attempted over a
+// schema that was not read from unified schema storage.
+var ErrLegacySchemaUnsupported = errors.New("query planning requires unified schema storage: legacy schema reads are not supported")
+
+// Bind uses an already-loaded schema. Legacy schema readers are not supported and fail.
 // Acquisition never issues datastore reads or queries.
 func Bind(owner *signals.Owner, loaded any, revision datastore.Revision, hash string) (*signals.View, error) {
 	scope := signal.Scope{Revision: revision, SchemaHash: hash}
 
-	if stored, ok := loaded.(interface {
+	stored, ok := loaded.(interface {
 		StoredSchema() *datastore.ReadOnlyStoredSchema
-	}); ok {
-		return owner.Bind(stored.StoredSchema(), scope)
+	})
+	if !ok {
+		return nil, ErrLegacySchemaUnsupported
 	}
 
-	return owner.Local(scope), nil
+	s := stored.StoredSchema()
+
+	// Callers without a real hash, such as legacy ZedTokens, bind to the hash of the loaded schema.
+	// TODO: remove once all callers have moved over to tokens and cursors that carry a schema hash.
+	if datalayer.SchemaHash(hash).IsBypassSentinel() && s != nil && s.Get().GetV1() != nil {
+		scope.SchemaHash = s.Get().GetV1().SchemaHash
+	}
+
+	return owner.Bind(s, scope)
 }
 
 // Plan runs the decision phase on a memoized read view after dispatch wrapping.

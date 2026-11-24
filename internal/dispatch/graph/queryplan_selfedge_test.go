@@ -67,6 +67,10 @@ func (d *recordingPlanDispatcher) DispatchQueryPlan(req *v1.DispatchQueryPlanReq
 func TestQueryPlanSelfEdgeAcrossDispatch(t *testing.T) {
 	rawDS, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 0, memdb.DisableGC)
 	require.NoError(t, err)
+
+	// Query planning requires unified schema storage.
+	_, err = datalayer.WriteStoredSchemaForTest(t.Context(), rawDS, queryPlanSelfEdgeSchema)
+	require.NoError(t, err)
 	ds, revision := testfixtures.DatastoreFromSchemaAndTestRelationships(t, rawDS, queryPlanSelfEdgeSchema,
 		[]tuple.Relationship{
 			tuple.MustParse("team:eng#member@user:alice"),
@@ -75,7 +79,8 @@ func TestQueryPlanSelfEdgeAcrossDispatch(t *testing.T) {
 		})
 
 	ctx := log.Logger.WithContext(datalayer.ContextWithHandle(t.Context()))
-	require.NoError(t, datalayer.SetInContext(ctx, datalayer.NewDataLayer(ds)))
+	dl := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(datalayer.SchemaModeReadNewWriteBoth))
+	require.NoError(t, datalayer.SetInContext(ctx, dl))
 
 	compiled, err := compiler.Compile(compiler.InputSchema{
 		Source:       input.Source("test"),
@@ -113,7 +118,7 @@ func TestQueryPlanSelfEdgeAcrossDispatch(t *testing.T) {
 			ctx,
 			recorder,
 			dispatch.NewPlanContext(revision.String(), datalayer.NoSchemaHashForTesting, nil, 50, 0),
-			query.NewQueryDatastoreReader(datalayer.NewDataLayer(ds).SnapshotReader(revision, datalayer.NoSchemaHashForTesting)),
+			query.NewQueryDatastoreReader(dl.SnapshotReader(revision, datalayer.NoSchemaHashForTesting)),
 			caveats.NewCaveatRunner(caveattypes.Default.TypeSet),
 			100,
 		)

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	datastoreTest "github.com/authzed/spicedb/internal/testserver/datastore"
+	"github.com/authzed/spicedb/pkg/datalayer/schemamode"
 	"github.com/authzed/spicedb/pkg/datastore/migration"
 	"github.com/authzed/spicedb/pkg/migrate"
 )
@@ -170,8 +171,12 @@ func TestMigrateRunPassesFlagsAsExtraConfig(t *testing.T) {
 	const flagName = "a-new-flag"
 
 	var received *MigrateConfig
-	migration.RegisterMigratableEngine(engineName, migrate.NewManager[*nilDriver, any, any](), func(_ context.Context, cfg *MigrateConfig) (*nilDriver, error) {
+	var receivedMode schemamode.SchemaMode
+	var receivedConfigured bool
+	migration.RegisterMigratableEngine(engineName, migrate.NewManager[*nilDriver, any, any](), func(ctx context.Context, cfg *MigrateConfig) (*nilDriver, error) {
 		received = cfg
+		receivedMode, _ = migrate.SchemaMigrationMode.Value(ctx)
+		receivedConfigured = migrate.SchemaModeConfigured(ctx)
 		return nil, errors.New("driver construction stops here")
 	}, "")
 	t.Cleanup(func() { migration.UnregisterMigratableEngineForTesting(engineName) })
@@ -181,11 +186,17 @@ func TestMigrateRunPassesFlagsAsExtraConfig(t *testing.T) {
 	cmd.Flags().String(flagName, "", "a new hidden flag")
 	require.NoError(t, cmd.Flags().Set("datastore-engine", engineName))
 	require.NoError(t, cmd.Flags().Set(flagName, "very-hidden"))
+	require.NoError(t, cmd.Flags().Set("experimental-schema-mode", "read-new-write-new"))
+	require.NoError(t, cmd.Flags().Set("datastore-migration-phase", "schema-write-both-read-old"))
 	cmd.SetArgs([]string{"head"})
 
 	require.Error(t, cmd.Execute())
 	require.NotNil(t, received)
 	require.Equal(t, "very-hidden", received.ExtraConfig[flagName])
+	require.Equal(t, "read-new-write-new", received.SchemaMode)
+	require.Equal(t, "schema-write-both-read-old", received.MigrationPhase)
+	require.Equal(t, schemamode.SchemaModeReadNewWriteNew, receivedMode)
+	require.True(t, receivedConfigured)
 	require.Equal(t, engineName, received.ExtraConfig["datastore-engine"])
 }
 

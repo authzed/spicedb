@@ -13,6 +13,7 @@ import (
 
 	"github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/cmd/util"
+	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/testutil"
 )
 
@@ -362,6 +363,7 @@ func TestMiddlewareOrdering(t *testing.T) {
 	ds, err := datastore.NewDatastore(ctx,
 		datastore.DefaultDatastoreConfig().ToOption(),
 		datastore.WithBootstrapFiles("testdata/test_schema.yaml"),
+		datastore.WithBootstrapSchemaMode(datalayer.SchemaModeReadNewWriteBoth),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {

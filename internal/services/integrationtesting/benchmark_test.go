@@ -334,11 +334,15 @@ func BenchmarkServices(b *testing.B) {
 					}
 
 					// Set up dispatch server (default path).
-					dispatchConn := testserver.TestClusterWithDispatch(b, 1, ds)
+					// Benchmark setup writes legacy definitions directly.
+					dispatchConn := testserver.TestClusterWithDispatch(b, 1, ds,
+						server.WithExperimentalSchemaMode("read-legacy-write-legacy"),
+					)
 					dispatchTester := consistencytestutil.NewServiceTester(dispatchConn[0])
 
 					// Set up query plan server.
 					qpConn := testserver.TestClusterWithDispatch(b, 1, ds,
+						server.WithExperimentalSchemaMode("read-legacy-write-legacy"),
 						server.WithExperimentalQueryPlan("check"),
 						server.WithExperimentalQueryPlan("lr"),
 						server.WithExperimentalQueryPlan("ls"),

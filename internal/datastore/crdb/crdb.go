@@ -217,6 +217,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		supportsIntegrity:            config.withIntegrity,
 		gcWindow:                     config.gcWindow,
 		watchEnabled:                 !config.watchDisabled,
+		schemaHashReadsDisabled:      config.schemaHashReadsDisabled,
 		schema:                       *schema.Schema(config.columnOptimizationOption, config.withIntegrity, false),
 	}
 
@@ -300,6 +301,9 @@ func (cds *crdbDatastore) OptimizedRevision(ctx context.Context) (datastore.Revi
 	}
 
 	rev, validFor := revisions.Quantize(nowTS, cds.followerReadDelay, cds.revisionQuantization)
+	if cds.schemaHashReadsDisabled {
+		return datastore.RevisionWithSchemaHashAndValidity{Revision: rev, ValidFor: validFor}, nil
+	}
 
 	// Read the hash at the quantized revision, not at now. A schema written between the two
 	// would otherwise pair this revision with a schema that was not in effect at it.
@@ -403,6 +407,8 @@ type crdbDatastore struct {
 	filterMaximumIDCount uint16
 	supportsIntegrity    bool
 	watchEnabled         bool
+
+	schemaHashReadsDisabled bool
 
 	uniqueID atomic.Pointer[string]
 }
@@ -617,6 +623,14 @@ func (cds *crdbDatastore) Close() error {
 }
 
 func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
+	if cds.schemaHashReadsDisabled {
+		rev, err := cds.headRevisionInternalNoHash(ctx)
+		if err != nil {
+			return datastore.RevisionWithSchemaHash{}, err
+		}
+		return datastore.RevisionWithSchemaHash{Revision: rev}, nil
+	}
+
 	rev, schemaHash, err := cds.headRevisionWithSchemaHash(ctx)
 	if err != nil {
 		return datastore.RevisionWithSchemaHash{}, err
