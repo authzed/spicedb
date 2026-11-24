@@ -135,6 +135,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 	if err := datastore.RegisterDatastoreFlags(datastoreFlags, &config.DatastoreConfig); err != nil {
 		return err
 	}
+	datastoreFlags.DurationVar(&config.HealthRecheckInterval, "datastore-readiness-recheck-interval", 0, "if non-zero, keep checking the datastore at this interval after startup and report the gRPC health service as NOT_SERVING after two consecutive failures (and SERVING again once it recovers), so that it can be used as a readiness probe. 0 checks only at startup")
 	datastoreFlags.Uint64Var(&config.MaxDatastoreReadPageSize, "max-datastore-read-page-size", 1_000, "limit on the maximum page size that we will load into memory from the datastore at one time")
 
 	namespaceCacheFlags := nfs.FlagSet(BoldBlue("Namespace Cache"))

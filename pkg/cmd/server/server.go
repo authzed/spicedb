@@ -68,6 +68,7 @@ type Config struct {
 	PresharedSecureKey     []string              `debugmap:"sensitive" default:"[]"`
 	ShutdownGracePeriod    time.Duration         `debugmap:"visible"   default:"5s"`
 	ShutdownDrainDelay     time.Duration         `debugmap:"visible"`
+	HealthRecheckInterval  time.Duration         `debugmap:"visible"`
 	DisableVersionResponse bool                  `debugmap:"visible"`
 	ServerName             string                `debugmap:"visible"`
 
@@ -615,7 +616,7 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		QueryPlanMetadata: queryPlanMetadata,
 	}
 
-	healthManager := health.NewHealthManager(dispatcher, ds)
+	healthManager := health.NewHealthManager(dispatcher, ds, health.WithReadinessRecheck(c.HealthRecheckInterval))
 	grpcServer, err := c.GRPCServer.Complete(zerolog.InfoLevel,
 		func(server *grpc.Server) {
 			services.RegisterGrpcServices(

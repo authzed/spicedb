@@ -46,6 +46,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.PresharedSecureKey = c.PresharedSecureKey
 		to.ShutdownGracePeriod = c.ShutdownGracePeriod
 		to.ShutdownDrainDelay = c.ShutdownDrainDelay
+		to.HealthRecheckInterval = c.HealthRecheckInterval
 		to.DisableVersionResponse = c.DisableVersionResponse
 		to.ServerName = c.ServerName
 		to.HTTPGateway = c.HTTPGateway
@@ -159,6 +160,13 @@ func (c *Config) DebugMap() map[string]any {
 		debugMap["ShutdownDrainDelay"] = dm.DebugMap()
 	} else {
 		debugMap["ShutdownDrainDelay"] = c.ShutdownDrainDelay
+	}
+	if dm, ok := any(&c.HealthRecheckInterval).(interface {
+		DebugMap() map[string]any
+	}); ok {
+		debugMap["HealthRecheckInterval"] = dm.DebugMap()
+	} else {
+		debugMap["HealthRecheckInterval"] = c.HealthRecheckInterval
 	}
 	debugMap["DisableVersionResponse"] = c.DisableVersionResponse
 	if c.ServerName == "" {
@@ -509,6 +517,13 @@ func WithShutdownGracePeriod(shutdownGracePeriod time.Duration) ConfigOption {
 func WithShutdownDrainDelay(shutdownDrainDelay time.Duration) ConfigOption {
 	return func(c *Config) {
 		c.ShutdownDrainDelay = shutdownDrainDelay
+	}
+}
+
+// WithHealthRecheckInterval returns an option that can set HealthRecheckInterval on a Config
+func WithHealthRecheckInterval(healthRecheckInterval time.Duration) ConfigOption {
+	return func(c *Config) {
+		c.HealthRecheckInterval = healthRecheckInterval
 	}
 }
 
