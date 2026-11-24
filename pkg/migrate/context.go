@@ -20,6 +20,13 @@ var SchemaMigrationMode = ctxkey.New[schemamode.SchemaMode]()
 // set a schema mode or schema migration phase for the migration.
 var SchemaMigrationModeConfigured = ctxkey.New[bool]()
 
+// TODO: when --experimental-schema-mode is removed, a migration job can no longer
+// say that an installation is unified-only. An unconfigured refresh would then
+// copy a stale legacy schema over the live unified one on an installation that
+// ran read-new-write-new and skipped the release that introduced the refresh. At
+// that point, make the refresh refuse when unified storage exists and differs
+// from legacy storage, directing the operator to upgrade through that release.
+//
 // ShouldRefreshSchema reports whether the refresh copies legacy storage into
 // unified storage. An installation configured to read unified storage already
 // treats it as current, so there is nothing to copy. Any other installation
