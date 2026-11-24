@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 
 	"golang.org/x/sync/errgroup"
@@ -718,7 +719,10 @@ func (cl *ConcurrentLookupSubjects) dispatchTo(
 
 func combineFoundSubjects(existing *v1.FoundSubjects, toAdd *v1.FoundSubjects) (*v1.FoundSubjects, error) {
 	if existing == nil {
-		return toAdd, nil
+		// toAdd.FoundSubjects may share a backing array with other resources.
+		// We need to prevent appends overwriting each other when the backing array is shared, therefore we clip the slice to remove the extra capacity.
+		// By doing so, we ensure that the next append operation will allocate a new backing array.
+		return &v1.FoundSubjects{FoundSubjects: slices.Clip(toAdd.FoundSubjects)}, nil
 	}
 
 	if toAdd == nil {

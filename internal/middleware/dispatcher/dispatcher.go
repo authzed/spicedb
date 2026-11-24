@@ -6,28 +6,27 @@ import (
 	middleware "github.com/grpc-ecosystem/go-grpc-middleware/v2"
 	"google.golang.org/grpc"
 
+	"github.com/authzed/ctxkey"
+
 	"github.com/authzed/spicedb/internal/dispatch"
 )
-
-type ctxKeyType struct{}
-
-var dispatcherKey ctxKeyType = struct{}{}
 
 type dispatchHandle struct {
 	dispatcher dispatch.Dispatcher
 }
 
+var dispatcherKey = ctxkey.New[*dispatchHandle]()
+
 // ContextWithHandle adds a placeholder to a context that will later be
 // filled by the dispatcher
 func ContextWithHandle(ctx context.Context) context.Context {
-	return context.WithValue(ctx, dispatcherKey, &dispatchHandle{})
+	return dispatcherKey.Set(ctx, &dispatchHandle{})
 }
 
 // FromContext reads the selected dispatcher out of a context.Context
 // and returns nil if it does not exist.
 func FromContext(ctx context.Context) dispatch.Dispatcher {
-	if c := ctx.Value(dispatcherKey); c != nil {
-		handle := c.(*dispatchHandle)
+	if handle, ok := dispatcherKey.Value(ctx); ok {
 		return handle.dispatcher
 	}
 	return nil
@@ -35,11 +34,11 @@ func FromContext(ctx context.Context) dispatch.Dispatcher {
 
 // SetInContext adds a dispatcher to the given context
 func SetInContext(ctx context.Context, dispatcher dispatch.Dispatcher) error {
-	handle := ctx.Value(dispatcherKey)
-	if handle == nil {
+	handle, ok := dispatcherKey.Value(ctx)
+	if !ok {
 		return nil
 	}
-	handle.(*dispatchHandle).dispatcher = dispatcher
+	handle.dispatcher = dispatcher
 	return nil
 }
 

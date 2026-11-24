@@ -528,7 +528,7 @@ func runMigrations(ctx context.Context, t testing.TB, uri string) {
 	t.Helper()
 	// The xid-backfill migration reads its batch size from the context, as the
 	// standard test bootstrap does.
-	ctx = context.WithValue(ctx, migrate.BackfillBatchSize, uint64(1000))
+	ctx = migrate.BackfillBatchSize.Set(ctx, 1000)
 	driver, err := pgmigrations.NewAlembicPostgresDriver(ctx, uri, datastore.NoCredentialsProvider, false)
 	require.NoError(t, err)
 	defer func() { _ = driver.Close(ctx) }()

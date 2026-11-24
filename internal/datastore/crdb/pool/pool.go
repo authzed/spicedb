@@ -14,6 +14,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 
+	"github.com/authzed/ctxkey"
+
 	"github.com/authzed/spicedb/internal/datastore/common"
 	pgxcommon "github.com/authzed/spicedb/internal/datastore/postgres/common"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -39,10 +41,8 @@ func init() {
 	prometheus.MustRegister(resetHistogram)
 }
 
-type ctxDisableRetries struct{}
-
 var (
-	CtxDisableRetries ctxDisableRetries
+	CtxDisableRetries = ctxkey.NewWithDefault(false)
 	ErrAcquire        = errors.New("failed to acquire in time")
 )
 
@@ -323,7 +323,7 @@ func (p *RetryPool) withRetries(ctx context.Context, acquireTimeout time.Duratio
 	}()
 
 	maxRetries := p.maxRetries
-	if disabled, ok := ctx.Value(CtxDisableRetries).(bool); ok && disabled {
+	if CtxDisableRetries.Value(ctx) {
 		maxRetries = 0
 	}
 
