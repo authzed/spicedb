@@ -19,6 +19,7 @@ import (
 	"github.com/authzed/spicedb/internal/services/shared"
 	caveattypes "github.com/authzed/spicedb/pkg/caveats/types"
 	"github.com/authzed/spicedb/pkg/datalayer"
+	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/datastore/options"
 	"github.com/authzed/spicedb/pkg/genutil"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
@@ -156,9 +157,21 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 		return nil, ss.rewriteError(ctx, err)
 	}
 
+	// Check the changes against the relationships at a snapshot, without holding the schema lock.
+	// Under the lock, only the relationships created since then need to be checked.
+	precheck, err := ss.precheckSchemaChanges(ctx, dl, validated)
+	if err != nil {
+		return nil, ss.rewriteError(ctx, err)
+	}
+
 	var writtenSchemaHash datalayer.SchemaHash
 	revision, err := dl.ReadWriteTx(ctx, func(ctx context.Context, rwt datalayer.ReadWriteTransaction) error {
-		applied, err := shared.ApplySchemaChanges(ctx, rwt, ss.caveatTypeSet, validated)
+		querier, err := precheck.querier(ctx, rwt)
+		if err != nil {
+			return err
+		}
+
+		applied, err := shared.ApplySchemaChangesWithQuerier(ctx, rwt, querier, ss.caveatTypeSet, validated)
 		if err != nil {
 			return err
 		}
@@ -186,6 +199,74 @@ func (ss *schemaServer) WriteSchema(ctx context.Context, in *v1.WriteSchemaReque
 	return &v1.WriteSchemaResponse{
 		WrittenAt: zedToken,
 	}, nil
+}
+
+// schemaPrecheck records schema change checks that passed at a revision, without the schema
+// lock.
+type schemaPrecheck struct {
+	// reader lists the relationships created after a revision. It is nil if no checks ran.
+	reader datastore.CreatedRelationshipsReader
+
+	// revision is the revision the checks ran at.
+	revision datastore.Revision
+
+	// schemaText is the text of the schema the changes were diffed against at revision.
+	schemaText string
+}
+
+// precheckSchemaChanges runs the schema change checks against the relationships at the head
+// revision, without holding the schema lock, and returns an error if they fail. It runs no
+// checks if the datastore cannot list the relationships created after a revision, or if
+// relationship writes do not take the schema lock, which is the case when schema is read from
+// legacy storage.
+func (ss *schemaServer) precheckSchemaChanges(ctx context.Context, dl datalayer.DataLayer, validated *shared.ValidatedSchemaChanges) (*schemaPrecheck, error) {
+	ds := datalayer.UnwrapDatastore(dl)
+	if ds == nil {
+		return &schemaPrecheck{}, nil
+	}
+	reader := datastore.UnwrapAs[datastore.CreatedRelationshipsReader](ds)
+	if reader == nil {
+		return &schemaPrecheck{}, nil
+	}
+
+	headRev, schemaHash, err := dl.HeadRevision(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if schemaHash == datalayer.NoSchemaHashInLegacyMode {
+		return &schemaPrecheck{}, nil
+	}
+
+	ctx, span := tracer.Start(ctx, "precheckSchemaChanges")
+	defer span.End()
+	schemaText, err := shared.CheckSchemaChanges(ctx, dl.SnapshotReader(headRev, schemaHash), ss.caveatTypeSet, validated)
+	if err != nil {
+		return nil, err
+	}
+
+	return &schemaPrecheck{reader: reader, revision: headRev, schemaText: schemaText}, nil
+}
+
+// querier returns the querier for the schema change checks under the schema lock, which rwt
+// holds. If the checks passed at an earlier revision against the schema rwt sees, it queries only
+// the relationships created since that revision: rwt holds the lock, so no relationship write
+// can commit until rwt does. Otherwise it is rwt, and every check runs again.
+func (p *schemaPrecheck) querier(ctx context.Context, rwt datalayer.ReadWriteTransaction) (shared.RelationshipQuerier, error) {
+	if p.reader == nil {
+		return rwt, nil
+	}
+
+	// The schema can change between the precheck and taking the lock. The checks depend on the
+	// diff against the existing schema, so they carry over only if it is the same schema.
+	schemaText, err := shared.ExistingSchemaText(ctx, rwt)
+	if err != nil {
+		return nil, err
+	}
+	if schemaText != p.schemaText {
+		return rwt, nil
+	}
+
+	return p.reader.RelationshipsCreatedAfter(p.revision)
 }
 
 func (ss *schemaServer) ReflectSchema(ctx context.Context, req *v1.ReflectSchemaRequest) (*v1.ReflectSchemaResponse, error) {
