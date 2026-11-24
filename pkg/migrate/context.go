@@ -22,9 +22,10 @@ var SchemaMigrationModeConfigured = ctxkey.New[bool]()
 
 // ShouldRefreshSchema reports whether the refresh copies legacy storage into
 // unified storage. An installation configured to read unified storage already
-// treats it as current, so there is nothing to copy. One configured to read
-// legacy storage always copies. Without a configured mode, the refresh copies
-// only where that cannot lose unified-only changes; see SchemaModeConfigured.
+// treats it as current, so there is nothing to copy. Any other installation
+// reads legacy storage and always copies. That includes one configured with no
+// mode at all: before unified storage became the default, every other mode had
+// to be set explicitly, so an unconfigured installation ran legacy-only.
 func ShouldRefreshSchema(ctx context.Context) bool {
 	mode, _ := SchemaMigrationMode.Value(ctx)
 	return !SchemaModeConfigured(ctx) || !mode.ReadsFromNew()

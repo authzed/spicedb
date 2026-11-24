@@ -14,7 +14,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 
-	"github.com/authzed/spicedb/internal/datastore/common"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	dscfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datalayer"
@@ -582,9 +581,8 @@ func TestSchemaRefreshDoesNotBlockPreparationReads(t *testing.T) {
 }
 
 // The refresh follows the schema mode the installation's servers run: modes that
-// read unified storage keep it, and modes that read legacy storage copy legacy
-// storage over it. Without a configured mode, it refuses only where copying
-// would replace a unified schema that differs from legacy storage.
+// read unified storage keep it, and all others, including no mode at all, copy
+// legacy storage over it.
 func TestSchemaRefreshFollowsConfiguredMode(t *testing.T) {
 	for _, engine := range []string{"postgres", "mysql", "cockroachdb", "spanner"} {
 		t.Run(engine, func(t *testing.T) {
@@ -593,7 +591,6 @@ func TestSchemaRefreshFollowsConfiguredMode(t *testing.T) {
 			for _, tc := range []struct {
 				name, schemaMode, phase string
 				unifiedOnly             bool
-				wantErr                 bool
 				wantDefinition          string
 			}{
 				{name: "preparation phase", phase: "schema-write-both-read-old", unifiedOnly: true, wantDefinition: "legacy"},
@@ -601,7 +598,8 @@ func TestSchemaRefreshFollowsConfiguredMode(t *testing.T) {
 				{name: "unified only mode", schemaMode: "read-new-write-new", unifiedOnly: true, wantDefinition: "unified_only"},
 				{name: "unified only mode in a phase", schemaMode: "read-new-write-new", phase: "schema-write-both-read-old", unifiedOnly: true, wantDefinition: "unified_only"},
 				{name: "unified read mode", schemaMode: "read-new-write-both", unifiedOnly: true, wantDefinition: "unified_only"},
-				{name: "unconfigured with differing schemas", unifiedOnly: true, wantErr: true, wantDefinition: "unified_only"},
+				// An unconfigured installation ran the legacy-only default.
+				{name: "unconfigured", unifiedOnly: true, wantDefinition: "legacy"},
 				{name: "unconfigured without unified schema", wantDefinition: "legacy"},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
@@ -624,15 +622,7 @@ func TestSchemaRefreshFollowsConfiguredMode(t *testing.T) {
 					}
 
 					cfg.SchemaMode, cfg.MigrationPhase = tc.schemaMode, tc.phase
-					err = migration.Run(ctx, cfg, migrate.Head)
-					if tc.wantErr {
-						require.ErrorIs(t, err, common.ErrSchemaRefreshModeRequired)
-						ready, err := ds.ReadyState(ctx)
-						require.NoError(t, err)
-						require.True(t, ready.IsReady, "a refused refresh must leave the preparation revision in place")
-					} else {
-						require.NoError(t, err)
-					}
+					require.NoError(t, migration.Run(ctx, cfg, migrate.Head))
 
 					head, err := ds.HeadRevision(ctx)
 					require.NoError(t, err)

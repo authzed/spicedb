@@ -143,10 +143,6 @@ func populateSchemaTables(ctx context.Context, tx pgx.Tx, writes *pgx.Batch, rep
 		return fmt.Errorf("failed to compute schema hash: %w", err)
 	}
 
-	if err := common.CheckSchemaRefresh(ctx, stored, schemaHash); err != nil {
-		return err
-	}
-
 	// Unified storage that already matches legacy needs no rewrite, which leaves
 	// the hash row untouched and concurrent revision reads unaffected.
 	if stored.Exists && stored.Hash == schemaHash {

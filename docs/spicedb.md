@@ -322,7 +322,7 @@ spicedb datastore migrate [revision] [flags]
       --datastore-mysql-table-prefix string          prefix to add to the name of all mysql database tables
       --datastore-spanner-credentials string         path to service account key credentials file with access to the cloud spanner instance (omit to use application default credentials)
       --datastore-spanner-emulator-host string       URI of spanner emulator instance used for development and testing (e.g. localhost:9010)
-      --experimental-schema-mode string              schema storage mode; read-new-write-new preserves unified-only schema during migration (default "read-new-write-both")
+      --experimental-schema-mode string              schema storage mode the installation's servers run: modes that read unified storage keep it as is; otherwise, including when unset, unified storage is rebuilt from legacy storage
       --migration-backfill-batch-size uint           number of items to migrate per iteration of a datastore backfill (default 1000)
       --migration-timeout duration                   defines a timeout for the execution of the migration, set to 1 hour by default (default 1h0m0s)
       --pprof-block-profile-rate int                 sets the block profile sampling rate (between 0 and 1)

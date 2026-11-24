@@ -29,7 +29,7 @@ func RegisterMigrateFlags(cmd *cobra.Command) {
 	cmd.Flags().String("datastore-spanner-emulator-host", "", "URI of spanner emulator instance used for development and testing (e.g. localhost:9010)")
 	cmd.Flags().String("datastore-mysql-table-prefix", "", "prefix to add to the name of all mysql database tables")
 	cmd.Flags().Uint64("migration-backfill-batch-size", 1000, "number of items to migrate per iteration of a datastore backfill")
-	cmd.Flags().String("experimental-schema-mode", "", "schema storage mode the installation's servers run: modes that read unified storage keep it as is; modes that read legacy storage rebuild unified storage from legacy storage. If neither this nor a schema migration phase is set, the refresh fails rather than overwrite a unified schema that differs from legacy storage")
+	cmd.Flags().String("experimental-schema-mode", "", "schema storage mode the installation's servers run: modes that read unified storage keep it as is; otherwise, including when unset, unified storage is rebuilt from legacy storage")
 	cmd.Flags().String("datastore-migration-phase", "", "phase of a multi-step migration: schema-write-both-read-old prepares unified storage, schema-write-both-read-new enables unified reads, or an engine-specific phase")
 	cmd.Flags().Duration("migration-timeout", 1*time.Hour, "defines a timeout for the execution of the migration, set to 1 hour by default")
 

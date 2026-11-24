@@ -145,10 +145,6 @@ func populateSchemaTables(ctx context.Context, wrapper TxWrapper, replaceExistin
 		return fmt.Errorf("failed to compute schema hash: %w", err)
 	}
 
-	if err := common.CheckSchemaRefresh(ctx, stored, schemaHash); err != nil {
-		return err
-	}
-
 	// Create stored schema proto
 	storedSchema := &core.StoredSchema{
 		Version: currentSchemaVersion,
