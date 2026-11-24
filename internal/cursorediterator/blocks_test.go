@@ -449,7 +449,8 @@ func TestCursoredParallelIterators(t *testing.T) {
 
 			require.Panics(t, func() {
 				results := CursoredParallelIterators(ctx, Cursor{"1"}, concurrency, iter1)
-				for range results {
+				for _, err := range results {
+					require.NoError(t, err)
 					// Consume iterator to trigger panic
 				}
 			})
@@ -460,7 +461,8 @@ func TestCursoredParallelIterators(t *testing.T) {
 
 			require.Panics(t, func() {
 				results := CursoredParallelIterators(ctx, Cursor{"2"}, concurrency, iter1)
-				for range results {
+				for _, err := range results {
+					require.NoError(t, err)
 					// Consume iterator to trigger panic
 				}
 			})
