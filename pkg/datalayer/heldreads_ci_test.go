@@ -48,7 +48,8 @@ func TestReadWhileIteratingPanics(t *testing.T) {
 			_, _ = reader.ReadSchema(t.Context())
 		},
 		"QueryRelationships": func(t *testing.T, reader RevisionedReader) {
-			for range queryDocuments(t, reader) {
+			for _, err := range queryDocuments(t, reader) {
+				require.NoError(t, err)
 				break
 			}
 		},
@@ -91,7 +92,8 @@ func TestReadsAroundIterationDoNotPanic(t *testing.T) {
 	require.NoError(t, err)
 
 	// Break out early, then read.
-	for range queryDocuments(t, reader) {
+	for _, err := range queryDocuments(t, reader) {
+		require.NoError(t, err)
 		break
 	}
 	_, err = reader.ReadSchema(t.Context())

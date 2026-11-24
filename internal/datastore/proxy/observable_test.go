@@ -312,7 +312,8 @@ func TestObservableProxy_ReaderMethodsWithMetrics(t *testing.T) {
 				iter, err := reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{OptionalResourceType: "document"})
 				require.NoError(t, err)
 				var count int
-				for range iter {
+				for _, err := range iter {
+					require.NoError(t, err)
 					count++
 				}
 				require.Equal(t, 2, count)
@@ -332,7 +333,8 @@ func TestObservableProxy_ReaderMethodsWithMetrics(t *testing.T) {
 				iter, err := reader.ReverseQueryRelationships(t.Context(), datastore.SubjectsFilter{SubjectType: "user"})
 				require.NoError(t, err)
 				var count int
-				for range iter {
+				for _, err := range iter {
+					require.NoError(t, err)
 					count++
 				}
 				require.Equal(t, 1, count)

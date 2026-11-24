@@ -369,10 +369,17 @@ func newCRDBWithUser(t *testing.T) (adminConn *pgx.Conn, connStrings map[provisi
 	testcontainers.CleanupContainer(t, container)
 
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		config, err := container.ConnectionConfig(t.Context())
-		if !assert.NoError(t, err) {
+		// The URL can't carry the container's in-memory CA, so the TLS config
+		// has to be applied separately or verify-full fails against localhost.
+		info, err := container.ConnectionInfo(t.Context())
+		if !assert.NoError(collect, err) {
 			return
 		}
+		config, err := pgx.ParseConfig(info.URL)
+		if !assert.NoError(collect, err) {
+			return
+		}
+		config.TLSConfig = info.TLSConfig
 		adminConn, err = pgx.ConnectConfig(t.Context(), config)
 		assert.NoError(collect, err)
 	}, 5*time.Second, 1*time.Second)

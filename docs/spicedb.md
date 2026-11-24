@@ -20,9 +20,9 @@ A database that stores and computes permissions
 ### Options
 
 ```
-      --log-format string    format of logs ("auto", "console", "json") (default "auto")
-      --log-level string     verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
-      --skip-release-check   if true, skips checking for new SpiceDB releases
+      --log-format string                 format of logs ("auto", "console", "json") (default "auto")
+      --log-level string                  verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
+      --skip-release-check[=true|false]   if true, skips checking for new SpiceDB releases
 ```
 
 ### Children commands
@@ -43,9 +43,9 @@ Operations against the configured datastore
 ### Options Inherited From Parent Flags
 
 ```
-      --log-format string    format of logs ("auto", "console", "json") (default "auto")
-      --log-level string     verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
-      --skip-release-check   if true, skips checking for new SpiceDB releases
+      --log-format string                 format of logs ("auto", "console", "json") (default "auto")
+      --log-level string                  verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
+      --skip-release-check[=true|false]   if true, skips checking for new SpiceDB releases
 ```
 
 ### Children commands
@@ -113,7 +113,7 @@ spicedb datastore delete-relationships [flags]
       --batch-size uint                                                       maximum relationships deleted per transaction (default 1000)
       --datastore-allowed-migrations stringArray                              migration levels that will not fail the health check (in addition to the current head migration)
       --datastore-bootstrap-files strings                                     bootstrap data yaml files to load
-      --datastore-bootstrap-overwrite                                         overwrite any existing data with bootstrap data (this can be quite slow)
+      --datastore-bootstrap-overwrite[=true|false]                            overwrite any existing data with bootstrap data (this can be quite slow)
       --datastore-bootstrap-timeout duration                                  maximum duration before timeout for the bootstrap data to be written (default 10s)
       --datastore-conn-max-lifetime-jitter duration                           waits rand(0, jitter) after a connection is open for max lifetime to actually close the connection (default: 20% of max lifetime, 30m for CockroachDB)
       --datastore-conn-pool-read-healthcheck-interval duration                amount of time between connection health checks in a remote datastore's connection pool (default 30s)
@@ -130,20 +130,20 @@ spicedb datastore delete-relationships [flags]
       --datastore-conn-pool-write-min-open int                                number of minimum concurrent connections open in a remote datastore's connection pool (default 10)
       --datastore-conn-uri string                                             connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")
       --datastore-connect-rate duration                                       rate at which new connections are allowed to the datastore (at a rate of 1/duration) (CockroachDB driver only) (default 100ms)
-      --datastore-connection-balancing                                        enable connection balancing between database nodes (CockroachDB driver only) (default true)
+      --datastore-connection-balancing[=true|false]                           enable connection balancing between database nodes (CockroachDB driver only) (default true)
       --datastore-credentials-provider-name string                            retrieve datastore credentials dynamically using ("aws-iam")
-      --datastore-disable-watch-support                                       disable watch support (only enable if you absolutely do not need watch)
+      --datastore-disable-watch-support[=true|false]                          disable watch support (only enable if you absolutely do not need watch)
       --datastore-engine string                                               type of datastore to initialize ("cockroachdb", "mysql", "postgres", "spanner") (default "memory")
-      --datastore-experimental-column-optimization                            enable experimental column optimization (default true)
+      --datastore-experimental-column-optimization[=true|false]               enable experimental column optimization (default true)
       --datastore-follower-read-delay-duration duration                       amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (CockroachDB and Spanner drivers only) or read replicas (Postgres and MySQL drivers only) (default 4.8s)
       --datastore-gc-interval duration                                        how often the background worker deletes data that has aged out of the gc window; affects disk usage only, never which revisions are readable (Postgres and MySQL only) (default 3m0s)
       --datastore-gc-max-operation-time duration                              maximum amount of time a garbage collection pass can operate before timing out (Postgres and MySQL only) (default 1m0s)
       --datastore-gc-window duration                                          how far into the past clients may read: revisions older than this are rejected as stale, regardless of whether their data has been physically deleted yet (default 24h0m0s)
-      --datastore-include-query-parameters-in-traces                          include query parameters in traces (Postgres and CockroachDB drivers only)
+      --datastore-include-query-parameters-in-traces[=true|false]             include query parameters in traces (Postgres and CockroachDB drivers only)
       --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried; waits back off exponentially up to 10s (default 10)
       --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
-      --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
+      --datastore-prometheus-metrics[=true|false]                             set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration   amount of time between connection health checks in a remote datastore's connection pool (default 30s)
       --datastore-read-replica-conn-pool-read-max-idletime duration           maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
       --datastore-read-replica-conn-pool-read-max-lifetime duration           maximum amount of time a connection can live in a remote datastore's connection pool (default 30m0s)
@@ -152,10 +152,10 @@ spicedb datastore delete-relationships [flags]
       --datastore-read-replica-conn-pool-read-min-open int                    number of minimum concurrent connections open in a remote datastore's connection pool (default 20)
       --datastore-read-replica-conn-uri stringArray                           connection string used by remote datastores for read replicas (e.g. "postgres://postgres:password@localhost:5432/spicedb"). (Postgres and MySQL drivers only).
       --datastore-read-replica-credentials-provider-name string               retrieve datastore credentials dynamically using ("aws-iam")
-      --datastore-readonly                                                    set the service to read-only mode
+      --datastore-readonly[=true|false]                                       set the service to read-only mode
       --datastore-relationship-integrity-current-key-filename string          current key filename for relationship integrity checks
       --datastore-relationship-integrity-current-key-id string                current key id for relationship integrity checks
-      --datastore-relationship-integrity-enabled                              enables relationship integrity checks. (CockroachDB driver only)
+      --datastore-relationship-integrity-enabled[=true|false]                 enables relationship integrity checks. (CockroachDB driver only)
       --datastore-relationship-integrity-expired-keys stringArray             config for expired keys for relationship integrity checks
       --datastore-revision-quantization-interval duration                     boundary interval to which to round the quantized revision (default 5s)
       --datastore-revision-quantization-max-staleness-percent float           float percentage (where 1 = 100%) of the revision quantization interval where we may opt to select a stale revision for performance reasons. Defaults to 0.1 (representing 10%) (default 0.1)
@@ -180,15 +180,15 @@ spicedb datastore delete-relationships [flags]
       --subject-type string                                                   subject type to match, or <any>
       --termination-log-path string                                           local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
       --write-conn-acquisition-timeout duration                               amount of time that the server will wait for a connection to the datastore to become available when performing a write operation before throwing a ResourceExhausted error. 0 means wait indefinitely. (CockroachDB driver only) (default 30ms)
-      --yes                                                                   skip the confirmation prompt
+      --yes[=true|false]                                                      skip the confirmation prompt
 ```
 
 ### Options Inherited From Parent Flags
 
 ```
-      --log-format string    format of logs ("auto", "console", "json") (default "auto")
-      --log-level string     verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
-      --skip-release-check   if true, skips checking for new SpiceDB releases
+      --log-format string                 format of logs ("auto", "console", "json") (default "auto")
+      --log-level string                  verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
+      --skip-release-check[=true|false]   if true, skips checking for new SpiceDB releases
 ```
 
 
@@ -206,7 +206,7 @@ spicedb datastore gc [flags]
 ```
       --datastore-allowed-migrations stringArray                              migration levels that will not fail the health check (in addition to the current head migration)
       --datastore-bootstrap-files strings                                     bootstrap data yaml files to load
-      --datastore-bootstrap-overwrite                                         overwrite any existing data with bootstrap data (this can be quite slow)
+      --datastore-bootstrap-overwrite[=true|false]                            overwrite any existing data with bootstrap data (this can be quite slow)
       --datastore-bootstrap-timeout duration                                  maximum duration before timeout for the bootstrap data to be written (default 10s)
       --datastore-conn-max-lifetime-jitter duration                           waits rand(0, jitter) after a connection is open for max lifetime to actually close the connection (default: 20% of max lifetime, 30m for CockroachDB)
       --datastore-conn-pool-read-healthcheck-interval duration                amount of time between connection health checks in a remote datastore's connection pool (default 30s)
@@ -223,20 +223,20 @@ spicedb datastore gc [flags]
       --datastore-conn-pool-write-min-open int                                number of minimum concurrent connections open in a remote datastore's connection pool (default 10)
       --datastore-conn-uri string                                             connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")
       --datastore-connect-rate duration                                       rate at which new connections are allowed to the datastore (at a rate of 1/duration) (CockroachDB driver only) (default 100ms)
-      --datastore-connection-balancing                                        enable connection balancing between database nodes (CockroachDB driver only) (default true)
+      --datastore-connection-balancing[=true|false]                           enable connection balancing between database nodes (CockroachDB driver only) (default true)
       --datastore-credentials-provider-name string                            retrieve datastore credentials dynamically using ("aws-iam")
-      --datastore-disable-watch-support                                       disable watch support (only enable if you absolutely do not need watch)
+      --datastore-disable-watch-support[=true|false]                          disable watch support (only enable if you absolutely do not need watch)
       --datastore-engine string                                               type of datastore to initialize ("cockroachdb", "mysql", "postgres", "spanner") (default "memory")
-      --datastore-experimental-column-optimization                            enable experimental column optimization (default true)
+      --datastore-experimental-column-optimization[=true|false]               enable experimental column optimization (default true)
       --datastore-follower-read-delay-duration duration                       amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (CockroachDB and Spanner drivers only) or read replicas (Postgres and MySQL drivers only) (default 4.8s)
       --datastore-gc-interval duration                                        how often the background worker deletes data that has aged out of the gc window; affects disk usage only, never which revisions are readable (Postgres and MySQL only) (default 3m0s)
       --datastore-gc-max-operation-time duration                              maximum amount of time a garbage collection pass can operate before timing out (Postgres and MySQL only) (default 1m0s)
       --datastore-gc-window duration                                          how far into the past clients may read: revisions older than this are rejected as stale, regardless of whether their data has been physically deleted yet (default 24h0m0s)
-      --datastore-include-query-parameters-in-traces                          include query parameters in traces (Postgres and CockroachDB drivers only)
+      --datastore-include-query-parameters-in-traces[=true|false]             include query parameters in traces (Postgres and CockroachDB drivers only)
       --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried; waits back off exponentially up to 10s (default 10)
       --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
-      --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
+      --datastore-prometheus-metrics[=true|false]                             set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration   amount of time between connection health checks in a remote datastore's connection pool (default 30s)
       --datastore-read-replica-conn-pool-read-max-idletime duration           maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
       --datastore-read-replica-conn-pool-read-max-lifetime duration           maximum amount of time a connection can live in a remote datastore's connection pool (default 30m0s)
@@ -245,10 +245,10 @@ spicedb datastore gc [flags]
       --datastore-read-replica-conn-pool-read-min-open int                    number of minimum concurrent connections open in a remote datastore's connection pool (default 20)
       --datastore-read-replica-conn-uri stringArray                           connection string used by remote datastores for read replicas (e.g. "postgres://postgres:password@localhost:5432/spicedb"). (Postgres and MySQL drivers only).
       --datastore-read-replica-credentials-provider-name string               retrieve datastore credentials dynamically using ("aws-iam")
-      --datastore-readonly                                                    set the service to read-only mode
+      --datastore-readonly[=true|false]                                       set the service to read-only mode
       --datastore-relationship-integrity-current-key-filename string          current key filename for relationship integrity checks
       --datastore-relationship-integrity-current-key-id string                current key id for relationship integrity checks
-      --datastore-relationship-integrity-enabled                              enables relationship integrity checks. (CockroachDB driver only)
+      --datastore-relationship-integrity-enabled[=true|false]                 enables relationship integrity checks. (CockroachDB driver only)
       --datastore-relationship-integrity-expired-keys stringArray             config for expired keys for relationship integrity checks
       --datastore-revision-quantization-interval duration                     boundary interval to which to round the quantized revision (default 5s)
       --datastore-revision-quantization-max-staleness-percent float           float percentage (where 1 = 100%) of the revision quantization interval where we may opt to select a stale revision for performance reasons. Defaults to 0.1 (representing 10%) (default 0.1)
@@ -269,9 +269,9 @@ spicedb datastore gc [flags]
 ### Options Inherited From Parent Flags
 
 ```
-      --log-format string    format of logs ("auto", "console", "json") (default "auto")
-      --log-level string     verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
-      --skip-release-check   if true, skips checking for new SpiceDB releases
+      --log-format string                 format of logs ("auto", "console", "json") (default "auto")
+      --log-level string                  verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
+      --skip-release-check[=true|false]   if true, skips checking for new SpiceDB releases
 ```
 
 
@@ -296,9 +296,9 @@ spicedb datastore head [flags]
 ### Options Inherited From Parent Flags
 
 ```
-      --log-format string    format of logs ("auto", "console", "json") (default "auto")
-      --log-level string     verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
-      --skip-release-check   if true, skips checking for new SpiceDB releases
+      --log-format string                 format of logs ("auto", "console", "json") (default "auto")
+      --log-level string                  verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
+      --skip-release-check[=true|false]   if true, skips checking for new SpiceDB releases
 ```
 
 
@@ -331,9 +331,9 @@ spicedb datastore migrate [revision] [flags]
 ### Options Inherited From Parent Flags
 
 ```
-      --log-format string    format of logs ("auto", "console", "json") (default "auto")
-      --log-level string     verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
-      --skip-release-check   if true, skips checking for new SpiceDB releases
+      --log-format string                 format of logs ("auto", "console", "json") (default "auto")
+      --log-level string                  verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
+      --skip-release-check[=true|false]   if true, skips checking for new SpiceDB releases
 ```
 
 
@@ -351,7 +351,7 @@ spicedb datastore repair [flags]
 ```
       --datastore-allowed-migrations stringArray                              migration levels that will not fail the health check (in addition to the current head migration)
       --datastore-bootstrap-files strings                                     bootstrap data yaml files to load
-      --datastore-bootstrap-overwrite                                         overwrite any existing data with bootstrap data (this can be quite slow)
+      --datastore-bootstrap-overwrite[=true|false]                            overwrite any existing data with bootstrap data (this can be quite slow)
       --datastore-bootstrap-timeout duration                                  maximum duration before timeout for the bootstrap data to be written (default 10s)
       --datastore-conn-max-lifetime-jitter duration                           waits rand(0, jitter) after a connection is open for max lifetime to actually close the connection (default: 20% of max lifetime, 30m for CockroachDB)
       --datastore-conn-pool-read-healthcheck-interval duration                amount of time between connection health checks in a remote datastore's connection pool (default 30s)
@@ -368,20 +368,20 @@ spicedb datastore repair [flags]
       --datastore-conn-pool-write-min-open int                                number of minimum concurrent connections open in a remote datastore's connection pool (default 10)
       --datastore-conn-uri string                                             connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")
       --datastore-connect-rate duration                                       rate at which new connections are allowed to the datastore (at a rate of 1/duration) (CockroachDB driver only) (default 100ms)
-      --datastore-connection-balancing                                        enable connection balancing between database nodes (CockroachDB driver only) (default true)
+      --datastore-connection-balancing[=true|false]                           enable connection balancing between database nodes (CockroachDB driver only) (default true)
       --datastore-credentials-provider-name string                            retrieve datastore credentials dynamically using ("aws-iam")
-      --datastore-disable-watch-support                                       disable watch support (only enable if you absolutely do not need watch)
+      --datastore-disable-watch-support[=true|false]                          disable watch support (only enable if you absolutely do not need watch)
       --datastore-engine string                                               type of datastore to initialize ("cockroachdb", "mysql", "postgres", "spanner") (default "memory")
-      --datastore-experimental-column-optimization                            enable experimental column optimization (default true)
+      --datastore-experimental-column-optimization[=true|false]               enable experimental column optimization (default true)
       --datastore-follower-read-delay-duration duration                       amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (CockroachDB and Spanner drivers only) or read replicas (Postgres and MySQL drivers only) (default 4.8s)
       --datastore-gc-interval duration                                        how often the background worker deletes data that has aged out of the gc window; affects disk usage only, never which revisions are readable (Postgres and MySQL only) (default 3m0s)
       --datastore-gc-max-operation-time duration                              maximum amount of time a garbage collection pass can operate before timing out (Postgres and MySQL only) (default 1m0s)
       --datastore-gc-window duration                                          how far into the past clients may read: revisions older than this are rejected as stale, regardless of whether their data has been physically deleted yet (default 24h0m0s)
-      --datastore-include-query-parameters-in-traces                          include query parameters in traces (Postgres and CockroachDB drivers only)
+      --datastore-include-query-parameters-in-traces[=true|false]             include query parameters in traces (Postgres and CockroachDB drivers only)
       --datastore-max-tx-retries int                                          number of times a retriable transaction should be retried; waits back off exponentially up to 10s (default 10)
       --datastore-migration-phase string                                      datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                   prefix to add to the name of all SpiceDB database tables
-      --datastore-prometheus-metrics                                          set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
+      --datastore-prometheus-metrics[=true|false]                             set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration   amount of time between connection health checks in a remote datastore's connection pool (default 30s)
       --datastore-read-replica-conn-pool-read-max-idletime duration           maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
       --datastore-read-replica-conn-pool-read-max-lifetime duration           maximum amount of time a connection can live in a remote datastore's connection pool (default 30m0s)
@@ -390,10 +390,10 @@ spicedb datastore repair [flags]
       --datastore-read-replica-conn-pool-read-min-open int                    number of minimum concurrent connections open in a remote datastore's connection pool (default 20)
       --datastore-read-replica-conn-uri stringArray                           connection string used by remote datastores for read replicas (e.g. "postgres://postgres:password@localhost:5432/spicedb"). (Postgres and MySQL drivers only).
       --datastore-read-replica-credentials-provider-name string               retrieve datastore credentials dynamically using ("aws-iam")
-      --datastore-readonly                                                    set the service to read-only mode
+      --datastore-readonly[=true|false]                                       set the service to read-only mode
       --datastore-relationship-integrity-current-key-filename string          current key filename for relationship integrity checks
       --datastore-relationship-integrity-current-key-id string                current key id for relationship integrity checks
-      --datastore-relationship-integrity-enabled                              enables relationship integrity checks. (CockroachDB driver only)
+      --datastore-relationship-integrity-enabled[=true|false]                 enables relationship integrity checks. (CockroachDB driver only)
       --datastore-relationship-integrity-expired-keys stringArray             config for expired keys for relationship integrity checks
       --datastore-revision-quantization-interval duration                     boundary interval to which to round the quantized revision (default 5s)
       --datastore-revision-quantization-max-staleness-percent float           float percentage (where 1 = 100%) of the revision quantization interval where we may opt to select a stale revision for performance reasons. Defaults to 0.1 (representing 10%) (default 0.1)
@@ -414,9 +414,9 @@ spicedb datastore repair [flags]
 ### Options Inherited From Parent Flags
 
 ```
-      --log-format string    format of logs ("auto", "console", "json") (default "auto")
-      --log-level string     verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
-      --skip-release-check   if true, skips checking for new SpiceDB releases
+      --log-format string                 format of logs ("auto", "console", "json") (default "auto")
+      --log-level string                  verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
+      --skip-release-check[=true|false]   if true, skips checking for new SpiceDB releases
 ```
 
 
@@ -432,16 +432,16 @@ spicedb lsp [flags]
 ### Options
 
 ```
-      --addr string   address to listen on to serve LSP (default "-")
-      --stdio         enable stdio mode for LSP (default true)
+      --addr string          address to listen on to serve LSP (default "-")
+      --stdio[=true|false]   enable stdio mode for LSP (default true)
 ```
 
 ### Options Inherited From Parent Flags
 
 ```
-      --log-format string    format of logs ("auto", "console", "json") (default "auto")
-      --log-level string     verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
-      --skip-release-check   if true, skips checking for new SpiceDB releases
+      --log-format string                 format of logs ("auto", "console", "json") (default "auto")
+      --log-level string                  verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
+      --skip-release-check[=true|false]   if true, skips checking for new SpiceDB releases
 ```
 
 
@@ -465,9 +465,9 @@ spicedb man
 ### Options Inherited From Parent Flags
 
 ```
-      --log-format string    format of logs ("auto", "console", "json") (default "auto")
-      --log-level string     verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
-      --skip-release-check   if true, skips checking for new SpiceDB releases
+      --log-format string                 format of logs ("auto", "console", "json") (default "auto")
+      --log-level string                  verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
+      --skip-release-check[=true|false]   if true, skips checking for new SpiceDB releases
 ```
 
 
@@ -488,15 +488,15 @@ spicedb postgres-fdw [flags]
       --postgres-username string              The username that Postgres will use to connect to the FDW proxy (default "postgres")
       --spicedb-access-token-secret string    (required) Access token for calling the SpiceDB API
       --spicedb-api-endpoint string           SpiceDB API endpoint (default "localhost:50051")
-      --spicedb-insecure                      Use insecure connection to SpiceDB API
+      --spicedb-insecure[=true|false]         Use insecure connection to SpiceDB API
 ```
 
 ### Options Inherited From Parent Flags
 
 ```
-      --log-format string    format of logs ("auto", "console", "json") (default "auto")
-      --log-level string     verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
-      --skip-release-check   if true, skips checking for new SpiceDB releases
+      --log-format string                 format of logs ("auto", "console", "json") (default "auto")
+      --log-level string                  verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
+      --skip-release-check[=true|false]   if true, skips checking for new SpiceDB releases
 ```
 
 
@@ -529,7 +529,7 @@ spicedb serve [flags]
 ```
       --datastore-allowed-migrations stringArray                                        migration levels that will not fail the health check (in addition to the current head migration)
       --datastore-bootstrap-files strings                                               bootstrap data yaml files to load
-      --datastore-bootstrap-overwrite                                                   overwrite any existing data with bootstrap data (this can be quite slow)
+      --datastore-bootstrap-overwrite[=true|false]                                      overwrite any existing data with bootstrap data (this can be quite slow)
       --datastore-bootstrap-timeout duration                                            maximum duration before timeout for the bootstrap data to be written (default 10s)
       --datastore-conn-max-lifetime-jitter duration                                     waits rand(0, jitter) after a connection is open for max lifetime to actually close the connection (default: 20% of max lifetime, 30m for CockroachDB)
       --datastore-conn-pool-read-healthcheck-interval duration                          amount of time between connection health checks in a remote datastore's connection pool (default 30s)
@@ -546,20 +546,20 @@ spicedb serve [flags]
       --datastore-conn-pool-write-min-open int                                          number of minimum concurrent connections open in a remote datastore's connection pool (default 10)
       --datastore-conn-uri string                                                       connection string used by remote datastores (e.g. "postgres://postgres:password@localhost:5432/spicedb")
       --datastore-connect-rate duration                                                 rate at which new connections are allowed to the datastore (at a rate of 1/duration) (CockroachDB driver only) (default 100ms)
-      --datastore-connection-balancing                                                  enable connection balancing between database nodes (CockroachDB driver only) (default true)
+      --datastore-connection-balancing[=true|false]                                     enable connection balancing between database nodes (CockroachDB driver only) (default true)
       --datastore-credentials-provider-name string                                      retrieve datastore credentials dynamically using ("aws-iam")
-      --datastore-disable-watch-support                                                 disable watch support (only enable if you absolutely do not need watch)
+      --datastore-disable-watch-support[=true|false]                                    disable watch support (only enable if you absolutely do not need watch)
       --datastore-engine string                                                         type of datastore to initialize ("cockroachdb", "mysql", "postgres", "spanner") (default "memory")
-      --datastore-experimental-column-optimization                                      enable experimental column optimization (default true)
+      --datastore-experimental-column-optimization[=true|false]                         enable experimental column optimization (default true)
       --datastore-follower-read-delay-duration duration                                 amount of time to subtract from non-sync revision timestamps to ensure they are sufficiently in the past to enable follower reads (CockroachDB and Spanner drivers only) or read replicas (Postgres and MySQL drivers only) (default 4.8s)
       --datastore-gc-interval duration                                                  how often the background worker deletes data that has aged out of the gc window; affects disk usage only, never which revisions are readable (Postgres and MySQL only) (default 3m0s)
       --datastore-gc-max-operation-time duration                                        maximum amount of time a garbage collection pass can operate before timing out (Postgres and MySQL only) (default 1m0s)
       --datastore-gc-window duration                                                    how far into the past clients may read: revisions older than this are rejected as stale, regardless of whether their data has been physically deleted yet (default 24h0m0s)
-      --datastore-include-query-parameters-in-traces                                    include query parameters in traces (Postgres and CockroachDB drivers only)
+      --datastore-include-query-parameters-in-traces[=true|false]                       include query parameters in traces (Postgres and CockroachDB drivers only)
       --datastore-max-tx-retries int                                                    number of times a retriable transaction should be retried; waits back off exponentially up to 10s (default 10)
       --datastore-migration-phase string                                                datastore-specific flag that should be used to signal to a datastore which phase of a multi-step migration it is in
       --datastore-mysql-table-prefix string                                             prefix to add to the name of all SpiceDB database tables
-      --datastore-prometheus-metrics                                                    set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
+      --datastore-prometheus-metrics[=true|false]                                       set to false to disable metrics from the datastore (do not use for Spanner; setting to false will disable metrics to the configured metrics store in Spanner) (default true)
       --datastore-read-replica-conn-pool-read-healthcheck-interval duration             amount of time between connection health checks in a remote datastore's connection pool (default 30s)
       --datastore-read-replica-conn-pool-read-max-idletime duration                     maximum amount of time a connection can idle in a remote datastore's connection pool (default 30m0s)
       --datastore-read-replica-conn-pool-read-max-lifetime duration                     maximum amount of time a connection can live in a remote datastore's connection pool (default 30m0s)
@@ -568,10 +568,10 @@ spicedb serve [flags]
       --datastore-read-replica-conn-pool-read-min-open int                              number of minimum concurrent connections open in a remote datastore's connection pool (default 20)
       --datastore-read-replica-conn-uri stringArray                                     connection string used by remote datastores for read replicas (e.g. "postgres://postgres:password@localhost:5432/spicedb"). (Postgres and MySQL drivers only).
       --datastore-read-replica-credentials-provider-name string                         retrieve datastore credentials dynamically using ("aws-iam")
-      --datastore-readonly                                                              set the service to read-only mode
+      --datastore-readonly[=true|false]                                                 set the service to read-only mode
       --datastore-relationship-integrity-current-key-filename string                    current key filename for relationship integrity checks
       --datastore-relationship-integrity-current-key-id string                          current key id for relationship integrity checks
-      --datastore-relationship-integrity-enabled                                        enables relationship integrity checks. (CockroachDB driver only)
+      --datastore-relationship-integrity-enabled[=true|false]                           enables relationship integrity checks. (CockroachDB driver only)
       --datastore-relationship-integrity-expired-keys stringArray                       config for expired keys for relationship integrity checks
       --datastore-revision-quantization-interval duration                               boundary interval to which to round the quantized revision (default 5s)
       --datastore-revision-quantization-max-staleness-percent float                     float percentage (where 1 = 100%) of the revision quantization interval where we may opt to select a stale revision for performance reasons. Defaults to 0.1 (representing 10%) (default 0.1)
@@ -584,17 +584,17 @@ spicedb serve [flags]
       --datastore-watch-buffer-write-timeout duration                                   how long the watch buffer should queue before forcefully disconnecting the reader (default 1s)
       --datastore-watch-change-buffer-maximum-size string                               how much memory to reserve for the watch change buffer, either as a quantity of bytes (e.g. 5Gi) or a percentage of available memory (e.g. 50%). if this value is exceeded, the watch will error and must be restarted. (default "15%")
       --datastore-watch-connect-timeout duration                                        how long the watch connection to the underlying datastore should wait before timing out (CockroachDB driver only) (default 1s)
-      --disable-version-response                                                        disables version response support in the API
-      --dispatch-cache-enabled                                                          enable caching of dispatch calls this server makes to other servers (default true)
+      --disable-version-response[=true|false]                                           disables version response support in the API
+      --dispatch-cache-enabled[=true|false]                                             enable caching of dispatch calls this server makes to other servers (default true)
       --dispatch-cache-max-cost string                                                  upper bound (in bytes or as a percent of available memory) of the cache for dispatch calls this server makes to other servers (default "30%")
-      --dispatch-cache-metrics                                                          enable metrics for the cache for dispatch calls this server makes to other servers (default true)
+      --dispatch-cache-metrics[=true|false]                                             enable metrics for the cache for dispatch calls this server makes to other servers (default true)
       --dispatch-check-permission-concurrency-limit uint16                              maximum number of parallel goroutines to create for each check request or subrequest. defaults to --dispatch-concurrency-limit
       --dispatch-chunk-size uint16                                                      maximum number of object IDs in a dispatched request (default 100)
       --dispatch-cluster-addr string                                                    address to listen on to serve dispatch (default ":50053")
-      --dispatch-cluster-cache-enabled                                                  enable caching of dispatch calls this server receives from other servers (default true)
+      --dispatch-cluster-cache-enabled[=true|false]                                     enable caching of dispatch calls this server receives from other servers (default true)
       --dispatch-cluster-cache-max-cost string                                          upper bound (in bytes or as a percent of available memory) of the cache for dispatch calls this server receives from other servers (default "70%")
-      --dispatch-cluster-cache-metrics                                                  enable metrics for the cache for dispatch calls this server receives from other servers (default true)
-      --dispatch-cluster-enabled                                                        enable dispatch gRPC server
+      --dispatch-cluster-cache-metrics[=true|false]                                     enable metrics for the cache for dispatch calls this server receives from other servers (default true)
+      --dispatch-cluster-enabled[=true|false]                                           enable dispatch gRPC server
       --dispatch-cluster-max-conn-age duration                                          how long a connection serving dispatch should be able to live (default 30s)
       --dispatch-cluster-max-conn-age-grace duration                                    how long a connection serving dispatch stays open after its max age for the in-flight requests it carries. 0 waits for them forever
       --dispatch-cluster-max-workers uint32                                             set the number of workers for this server (0 value means 1 worker per request)
@@ -611,26 +611,26 @@ spicedb serve [flags]
       --dispatch-upstream-addr string                                                   upstream grpc address to dispatch to
       --dispatch-upstream-ca-path string                                                local path to the TLS CA used when connecting to the dispatch cluster
       --dispatch-upstream-timeout duration                                              maximum duration of a dispatch call an upstream cluster before it times out (default 1m0s)
-      --enable-experimental-watchable-schema-cache                                      enables the experimental schema cache, which uses the Watch API to keep the schema up to date
-      --enable-memory-protection-middleware                                             enables middleware that does a best effort at preventing OOM (Out of Memory) if the server's memory usage is too high by returning ResourceExhausted on incoming requests (default true)
-      --enable-performance-insight-metrics                                              enables performance insight metrics, which are used to track the latency of API calls by shape
-      --enable-revision-heartbeat                                                       enables support for revision heartbeat, used to create a synthetic revision on an interval defined by the quantization window (Postgres driver only; always off when --datastore-readonly is set) (default true)
+      --enable-experimental-watchable-schema-cache[=true|false]                         enables the experimental schema cache, which uses the Watch API to keep the schema up to date
+      --enable-memory-protection-middleware[=true|false]                                enables middleware that does a best effort at preventing OOM (Out of Memory) if the server's memory usage is too high by returning ResourceExhausted on incoming requests (default true)
+      --enable-performance-insight-metrics[=true|false]                                 enables performance insight metrics, which are used to track the latency of API calls by shape
+      --enable-revision-heartbeat[=true|false]                                          enables support for revision heartbeat, used to create a synthetic revision on an interval defined by the quantization window (Postgres driver only; always off when --datastore-readonly is set) (default true)
       --experimental-dispatch-secondary-maximum-primary-hedging-delays stringToString   map from secondary upstream name to the maximum delay of the primary dispatch when hedging with that secondary (default 5ms); a duration passed to hedged([...], duration) in an expression takes precedence (default [])
       --experimental-dispatch-secondary-upstream-addrs stringToString                   secondary upstream addresses for dispatches, each with a name (default [])
       --experimental-dispatch-secondary-upstream-exprs stringToString                   map from request type (check, lookupresources, lookupsubjects) to a CEL expression selecting secondary upstreams: a list of names (hedged), hedged([...]), hedged([...], duration('5ms')) to cap the adaptive primary delay, prefer_secondary([...], duration('50ms')) to start the primary only after that deadline or once all secondaries fail, or prefer_primary() to dispatch to the primary only. Both branches of a conditional must return the same kind of value (default [])
       --experimental-full-relation-cache string                                         full relation cache mode: disabled or enabled. When enabled, the server caches the complete set of relationships of a hot object#relation and serves reads — including negative answers — from memory. The --experimental-full-relation-cache-* flags only tune it; with --experimental-full-relation-cache-enabled=false or a zero max cost it stays inactive. When enabling, consider lowering --dispatch-cluster-cache-max-cost (e.g. 70% -> 40%) to fund --experimental-full-relation-cache-max-cost (default "disabled")
-      --experimental-full-relation-cache-enabled                                        enable caching of full relations (has no effect unless --experimental-full-relation-cache=enabled) (default true)
+      --experimental-full-relation-cache-enabled[=true|false]                           enable caching of full relations (has no effect unless --experimental-full-relation-cache=enabled) (default true)
       --experimental-full-relation-cache-materialize-threshold uint                     accesses to an object#relation at one revision, within the estimator window, before its complete set at that revision is materialized (default 3)
       --experimental-full-relation-cache-max-cost string                                upper bound (in bytes or as a percent of available memory) of the cache for full relations (has no effect unless --experimental-full-relation-cache=enabled) (default "30%")
       --experimental-full-relation-cache-maximum-set-size uint                          maximum number of relationships in a materialized set; larger sets are memoized as too-big and served from the datastore (default 1024)
-      --experimental-full-relation-cache-metrics                                        enable metrics for the cache for full relations (has no effect unless --experimental-full-relation-cache=enabled) (default true)
+      --experimental-full-relation-cache-metrics[=true|false]                           enable metrics for the cache for full relations (has no effect unless --experimental-full-relation-cache=enabled) (default true)
       --experimental-lookup-resources-version lr3                                       the version of the lookup resources API to use: lr3 (default) or empty to disable (default "lr3")
       --experimental-query-plan check                                                   comma-separated list of operations to route through the experimental query plan engine; valid values are check, `lr` (LookupResources), and `ls` (LookupSubjects)
       --experimental-schema-mode string                                                 schema storage mode for migration to unified schema: read-legacy-write-legacy, read-legacy-write-both, read-new-write-both, read-new-write-new (default "read-legacy-write-legacy")
       --grpc-addr string                                                                address to listen on to serve gRPC (default ":50051")
-      --grpc-enabled                                                                    enable gRPC gRPC server (default true)
-      --grpc-log-requests-enabled                                                       enable logging of API request payloads
-      --grpc-log-responses-enabled                                                      enable logging of API response payloads
+      --grpc-enabled[=true|false]                                                       enable gRPC gRPC server (default true)
+      --grpc-log-requests-enabled[=true|false]                                          enable logging of API request payloads
+      --grpc-log-responses-enabled[=true|false]                                         enable logging of API response payloads
       --grpc-max-conn-age duration                                                      how long a connection serving gRPC should be able to live (default 30s)
       --grpc-max-conn-age-grace duration                                                how long a connection serving gRPC stays open after its max age for the in-flight requests it carries. 0 waits for them forever
       --grpc-max-workers uint32                                                         set the number of workers for this server (0 value means 1 worker per request)
@@ -641,12 +641,12 @@ spicedb serve [flags]
       --grpc-tls-cert-path string                                                       local path to the TLS certificate used to serve gRPC
       --grpc-tls-key-path string                                                        local path to the TLS key used to serve gRPC
       --http-addr string                                                                address to listen on to serve proxy (default ":8443")
-      --http-enabled                                                                    enable http proxy server
+      --http-enabled[=true|false]                                                       enable http proxy server
       --http-tls-cert-path string                                                       local path to the TLS certificate used to serve proxy
       --http-tls-key-path string                                                        local path to the TLS key used to serve proxy
-      --lookup-resources-chunk-cache-enabled                                            enable caching of LookupResources3 chunks (default true)
+      --lookup-resources-chunk-cache-enabled[=true|false]                               enable caching of LookupResources3 chunks (default true)
       --lookup-resources-chunk-cache-max-cost string                                    upper bound (in bytes or as a percent of available memory) of the cache for LookupResources3 chunks (default "50MiB")
-      --lookup-resources-chunk-cache-metrics                                            enable metrics for the cache for LookupResources3 chunks
+      --lookup-resources-chunk-cache-metrics[=true|false]                               enable metrics for the cache for LookupResources3 chunks
       --max-bulk-export-relationships-limit uint32                                      maximum number of relationships that can be exported in a single request (default 10000)
       --max-caveat-context-size int                                                     maximum allowed size of request caveat context in bytes. A value of zero or less means no limit (default 4096)
       --max-datastore-read-page-size uint                                               limit on the maximum page size that we will load into memory from the datastore at one time (default 1000)
@@ -656,26 +656,26 @@ spicedb serve [flags]
       --max-read-relationships-limit uint32                                             maximum number of relationships that can be read in a single request (default 1000)
       --max-relationship-context-size int                                               maximum allowed size of the context to be stored in a relationship (default 25000)
       --metrics-addr string                                                             address to listen on to serve metrics (default ":9090")
-      --metrics-enabled                                                                 enable http metrics server (default true)
+      --metrics-enabled[=true|false]                                                    enable http metrics server (default true)
       --metrics-tls-cert-path string                                                    local path to the TLS certificate used to serve metrics
       --metrics-tls-key-path string                                                     local path to the TLS key used to serve metrics
       --mismatch-zed-token-behavior string                                              behavior to enforce when an API call receives a zedtoken that was originally intended for a different kind of datastore. One of: full-consistency (treat as a full-consistency call, ignoring the zedtoken), min-latency (treat as a min-latency call, ignoring the zedtoken), error (return an error). defaults to full-consistency for safety. (default "full-consistency")
-      --ns-cache-enabled                                                                enable caching of schema (default true)
+      --ns-cache-enabled[=true|false]                                                   enable caching of schema (default true)
       --ns-cache-max-cost string                                                        upper bound (in bytes or as a percent of available memory) of the cache for schema (default "32MiB")
-      --ns-cache-metrics                                                                enable metrics for the cache for schema (default true)
+      --ns-cache-metrics[=true|false]                                                   enable metrics for the cache for schema (default true)
       --otel-endpoint string                                                            OpenTelemetry collector endpoint - the endpoint can also be set by using enviroment variables
-      --otel-ignore-remote-sampling                                                     ignore the sampling decision sent by callers in their trace headers and apply otel-sample-ratio to every request. The caller's trace ID is still kept
-      --otel-insecure                                                                   connect to the OpenTelemetry collector in plaintext
+      --otel-ignore-remote-sampling[=true|false]                                        ignore the sampling decision sent by callers in their trace headers and apply otel-sample-ratio to every request. The caller's trace ID is still kept
+      --otel-insecure[=true|false]                                                      connect to the OpenTelemetry collector in plaintext
       --otel-provider string                                                            OpenTelemetry provider for tracing ("none", "otlphttp", "otlpgrpc") (default "none")
       --otel-sample-ratio float                                                         ratio of traces that are sampled (default 0.01)
       --otel-service-name string                                                        service name for trace data (default "spicedb")
       --otel-trace-propagator string                                                    OpenTelemetry trace propagation format ("b3", "w3c", "ottrace"). Add multiple propagators separated by comma. (default "w3c")
       --pprof-block-profile-rate int                                                    sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                                                    sets the mutex profile sampling rate (between 0 and 1)
-      --schema-prefixes-required                                                        require prefixes on all object definitions in schemas
-      --stored-schema-cache-enabled                                                     enable caching of stored schema (default true)
+      --schema-prefixes-required[=true|false]                                           require prefixes on all object definitions in schemas
+      --stored-schema-cache-enabled[=true|false]                                        enable caching of stored schema (default true)
       --stored-schema-cache-max-cost string                                             upper bound (in bytes or as a percent of available memory) of the cache for stored schema (default "32MiB")
-      --stored-schema-cache-metrics                                                     enable metrics for the cache for stored schema (default true)
+      --stored-schema-cache-metrics[=true|false]                                        enable metrics for the cache for stored schema (default true)
       --streaming-api-response-delay-timeout duration                                   maximum time that streaming APIs (LookupSubjects, LookupResources, ReadRelationships and ExportBulkRelationships) can be allowed to run but no response be sent to the client before the stream times out (default 30s)
       --telemetry-ca-override-path string                                               path to a custom CA to use with the telemetry endpoint
       --telemetry-endpoint string                                                       endpoint to which telemetry is reported, empty string to disable (default "https://telemetry.authzed.com")
@@ -690,9 +690,9 @@ spicedb serve [flags]
 ### Options Inherited From Parent Flags
 
 ```
-      --log-format string    format of logs ("auto", "console", "json") (default "auto")
-      --log-level string     verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
-      --skip-release-check   if true, skips checking for new SpiceDB releases
+      --log-format string                 format of logs ("auto", "console", "json") (default "auto")
+      --log-level string                  verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
+      --skip-release-check[=true|false]   if true, skips checking for new SpiceDB releases
 ```
 
 
@@ -709,7 +709,7 @@ spicedb serve-testing [flags]
 
 ```
       --grpc-addr string                                         address to listen on to serve gRPC (default ":50051")
-      --grpc-enabled                                             enable gRPC gRPC server (default true)
+      --grpc-enabled[=true|false]                                enable gRPC gRPC server (default true)
       --grpc-max-conn-age duration                               how long a connection serving gRPC should be able to live (default 30s)
       --grpc-max-conn-age-grace duration                         how long a connection serving gRPC stays open after its max age for the in-flight requests it carries. 0 waits for them forever
       --grpc-max-workers uint32                                  set the number of workers for this server (0 value means 1 worker per request)
@@ -718,7 +718,7 @@ spicedb serve-testing [flags]
       --grpc-tls-cert-path string                                local path to the TLS certificate used to serve gRPC
       --grpc-tls-key-path string                                 local path to the TLS key used to serve gRPC
       --http-addr string                                         address to listen on to serve http (default ":8443")
-      --http-enabled                                             enable http http server
+      --http-enabled[=true|false]                                enable http http server
       --http-tls-cert-path string                                local path to the TLS certificate used to serve http
       --http-tls-key-path string                                 local path to the TLS key used to serve http
       --load-configs strings                                     configuration yaml files to load
@@ -731,7 +731,7 @@ spicedb serve-testing [flags]
       --pprof-block-profile-rate int                             sets the block profile sampling rate (between 0 and 1)
       --pprof-mutex-profile-rate int                             sets the mutex profile sampling rate (between 0 and 1)
       --readonly-grpc-addr string                                address to listen on to serve read-only gRPC (default ":50052")
-      --readonly-grpc-enabled                                    enable read-only gRPC gRPC server (default true)
+      --readonly-grpc-enabled[=true|false]                       enable read-only gRPC gRPC server (default true)
       --readonly-grpc-max-conn-age duration                      how long a connection serving read-only gRPC should be able to live (default 30s)
       --readonly-grpc-max-conn-age-grace duration                how long a connection serving read-only gRPC stays open after its max age for the in-flight requests it carries. 0 waits for them forever
       --readonly-grpc-max-workers uint32                         set the number of workers for this server (0 value means 1 worker per request)
@@ -739,7 +739,7 @@ spicedb serve-testing [flags]
       --readonly-grpc-tls-cert-path string                       local path to the TLS certificate used to serve read-only gRPC
       --readonly-grpc-tls-key-path string                        local path to the TLS key used to serve read-only gRPC
       --readonly-http-addr string                                address to listen on to serve read-only HTTP (default ":8444")
-      --readonly-http-enabled                                    enable http read-only HTTP server
+      --readonly-http-enabled[=true|false]                       enable http read-only HTTP server
       --readonly-http-tls-cert-path string                       local path to the TLS certificate used to serve read-only HTTP
       --readonly-http-tls-key-path string                        local path to the TLS key used to serve read-only HTTP
       --termination-log-path string                              local file path for Kubernetes terminationMessagePath; written with a JSON exit reason on TerminationError; disabled when empty
@@ -750,9 +750,9 @@ spicedb serve-testing [flags]
 ### Options Inherited From Parent Flags
 
 ```
-      --log-format string    format of logs ("auto", "console", "json") (default "auto")
-      --log-level string     verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
-      --skip-release-check   if true, skips checking for new SpiceDB releases
+      --log-format string                 format of logs ("auto", "console", "json") (default "auto")
+      --log-level string                  verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
+      --skip-release-check[=true|false]   if true, skips checking for new SpiceDB releases
 ```
 
 
@@ -768,15 +768,15 @@ spicedb version [flags]
 ### Options
 
 ```
-      --include-deps   include dependencies' versions
+      --include-deps[=true|false]   include dependencies' versions
 ```
 
 ### Options Inherited From Parent Flags
 
 ```
-      --log-format string    format of logs ("auto", "console", "json") (default "auto")
-      --log-level string     verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
-      --skip-release-check   if true, skips checking for new SpiceDB releases
+      --log-format string                 format of logs ("auto", "console", "json") (default "auto")
+      --log-level string                  verbosity of logging ("trace", "debug", "info", "warn", "error") (default "info")
+      --skip-release-check[=true|false]   if true, skips checking for new SpiceDB releases
 ```
 
 

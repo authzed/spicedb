@@ -124,7 +124,8 @@ func TestCursoredIteratorsFromEveryCursor(t *testing.T) {
 	currentCursor := Cursor{}
 	for index := range len(fullExpectedData) {
 		results := iteratorForTest(t.Context(), currentCursor)
-		for r := range results {
+		for r, err := range results {
+			require.NoError(t, err)
 			require.Equal(t, fullExpectedData[index], r.Item, "Expected item does not match collected item at index %d", index)
 			currentCursor = r.Cursor
 			break
@@ -132,7 +133,8 @@ func TestCursoredIteratorsFromEveryCursor(t *testing.T) {
 	}
 
 	results := iteratorForTest(t.Context(), currentCursor)
-	for r := range results {
+	for r, err := range results {
+		require.NoError(t, err)
 		require.Failf(t, "Expected no more items, but got: %v", r.Item)
 	}
 }
