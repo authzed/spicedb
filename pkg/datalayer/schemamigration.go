@@ -3,7 +3,9 @@ package datalayer
 import (
 	"context"
 	"sort"
-	"sync"
+	"sync/atomic"
+
+	"github.com/maypok86/otter/v2"
 
 	"github.com/authzed/spicedb/pkg/datastore"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
@@ -13,25 +15,63 @@ import (
 
 // The marker is immutable once the refresh commits. Cache it for the datalayer's
 // lifetime; do not cache absence or failures while an upgrade is still running.
+// Every schema read consults the boundary, so it is loaded without a lock:
+// concurrent first loads all store the same immutable value.
 type schemaMigrationState struct {
 	reader   datastore.SchemaMigrationBoundaryReader
-	mu       sync.Mutex
-	boundary datastore.SchemaMigrationBoundary // GUARDED_BY(mu)
+	boundary atomic.Pointer[datastore.SchemaMigrationBoundary]
+
+	// TODO: remove this cache, along with the rest of the historical legacy read
+	// path, once the legacy-to-unified schema migration is removed and no
+	// supported deployment can serve revisions from before its boundary.
+	//
+	// The legacy caching proxy is not installed when reads come from unified
+	// storage, and it does not cache full listings in any case. Without this cache,
+	// every schema read at a pre-boundary revision would list every legacy
+	// definition and regenerate the schema.
+	historical *otter.Cache[string, SchemaReader]
+}
+
+// historicalSchemaCacheSize bounds the pre-boundary revisions kept materialized.
+// Requests from shortly before the refresh share a few quantized revisions, and
+// cursors reuse theirs across pages.
+const historicalSchemaCacheSize = 128
+
+func newSchemaMigrationState(reader datastore.SchemaMigrationBoundaryReader) *schemaMigrationState {
+	return &schemaMigrationState{
+		reader:     reader,
+		historical: otter.Must(&otter.Options[string, SchemaReader]{MaximumSize: historicalSchemaCacheSize}),
+	}
+}
+
+// historicalSchema returns the legacy schema as of rev. A snapshot never changes,
+// so each revision is materialized once; failures are not cached.
+func (s *schemaMigrationState) historicalSchema(ctx context.Context, reader datastore.LegacySchemaReader, rev datastore.Revision) (SchemaReader, error) {
+	return s.historical.Get(ctx, rev.String(), otter.LoaderFunc[string, SchemaReader](func(ctx context.Context, _ string) (SchemaReader, error) {
+		return newHistoricalSchemaReader(ctx, reader, rev)
+	}))
+}
+
+func (s *schemaMigrationState) loadBoundary(ctx context.Context) (datastore.SchemaMigrationBoundary, error) {
+	if cached := s.boundary.Load(); cached != nil {
+		return *cached, nil
+	}
+	boundary, err := s.reader.ReadSchemaMigrationBoundary(ctx)
+	if err != nil || boundary == nil {
+		return nil, err
+	}
+	s.boundary.Store(&boundary)
+	return boundary, nil
 }
 
 func (s *schemaMigrationState) useLegacy(ctx context.Context, rev datastore.Revision, hash SchemaHash) (bool, error) {
 	if s != nil && s.reader != nil {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		if s.boundary == nil {
-			boundary, err := s.reader.ReadSchemaMigrationBoundary(ctx)
-			if err != nil {
-				return false, err
-			}
-			s.boundary = boundary
+		boundary, err := s.loadBoundary(ctx)
+		if err != nil {
+			return false, err
 		}
-		if s.boundary != nil {
-			return !s.boundary.ContainsRevision(rev), nil
+		if boundary != nil {
+			return !boundary.ContainsRevision(rev), nil
 		}
 	}
 	// Stores without a marker can still receive tokens issued by legacy code.

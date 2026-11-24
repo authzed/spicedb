@@ -78,3 +78,48 @@ func TestHistoricalSchemaReadPropagatesFailures(t *testing.T) {
 		require.Nil(t, schema)
 	})
 }
+
+type countingLegacySchemaReader struct {
+	*fakeLegacySchemaReader
+	listings int
+}
+
+func (c *countingLegacySchemaReader) LegacyListAllNamespaces(ctx context.Context) ([]datastore.RevisionedNamespace, error) {
+	c.listings++
+	return c.fakeLegacySchemaReader.LegacyListAllNamespaces(ctx)
+}
+
+func TestHistoricalSchemaIsMaterializedOncePerRevision(t *testing.T) {
+	ctx := t.Context()
+	state := newSchemaMigrationState(nil)
+	reader := &countingLegacySchemaReader{fakeLegacySchemaReader: &fakeLegacySchemaReader{
+		namespaces: []datastore.RevisionedNamespace{{Definition: &core.NamespaceDefinition{Name: "document"}}},
+	}}
+
+	first, err := state.historicalSchema(ctx, reader, testRevision)
+	require.NoError(t, err)
+	second, err := state.historicalSchema(ctx, reader, testRevision)
+	require.NoError(t, err)
+	require.Same(t, first, second)
+	require.Equal(t, 1, reader.listings)
+
+	_, found, err := second.LookupTypeDefByName(ctx, "document")
+	require.NoError(t, err)
+	require.True(t, found)
+}
+
+func TestHistoricalSchemaFailureIsNotCached(t *testing.T) {
+	ctx := t.Context()
+	state := newSchemaMigrationState(nil)
+	readErr := errors.New("historical definitions unavailable")
+	reader := &countingLegacySchemaReader{fakeLegacySchemaReader: &fakeLegacySchemaReader{namespacesErr: readErr}}
+
+	_, err := state.historicalSchema(ctx, reader, testRevision)
+	require.ErrorIs(t, err, readErr)
+
+	reader.namespacesErr = nil
+	schema, err := state.historicalSchema(ctx, reader, testRevision)
+	require.NoError(t, err)
+	require.NotNil(t, schema)
+	require.Equal(t, 2, reader.listings)
+}

@@ -61,7 +61,7 @@ func WithSchemaCache(cache SchemaCache) DataLayerOption {
 func NewDataLayer(ds datastore.Datastore, opts ...DataLayerOption) DataLayer {
 	d := &defaultDataLayer{
 		ds:         ds,
-		migration:  &schemaMigrationState{reader: datastore.UnwrapAs[datastore.SchemaMigrationBoundaryReader](ds)},
+		migration:  newSchemaMigrationState(datastore.UnwrapAs[datastore.SchemaMigrationBoundaryReader](ds)),
 		schemaMode: SchemaModeReadLegacyWriteLegacy,
 		cache:      noopSchemaCache{},
 	}
@@ -275,7 +275,7 @@ func (r *revisionedReader) ReadSchema(ctx context.Context) (SchemaReader, error)
 			return nil, err
 		}
 		if legacy {
-			return newHistoricalSchemaReader(ctx, r.reader, r.rev)
+			return r.migration.historicalSchema(ctx, r.reader, r.rev)
 		}
 	}
 	if r.schemaMode.ReadsFromNew() {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	mysqlCommon "github.com/authzed/spicedb/internal/datastore/mysql/common"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
@@ -103,21 +104,24 @@ func populateSchemaTables(ctx context.Context, wrapper TxWrapper, replaceExistin
 		return fmt.Errorf("error iterating caveats: %w", err)
 	}
 
+	var stored common.UnifiedSchemaState
+	if replaceExisting {
+		var storedHash []byte
+		//nolint:gosec // Table names come from validated internal schema configuration.
+		query := fmt.Sprintf(`SELECT
+				(SELECT hash FROM %s WHERE name = ? AND deleted_transaction = 9223372036854775807),
+				EXISTS (SELECT 1 FROM %s WHERE name = ? AND deleted_transaction = 9223372036854775807)`,
+			wrapper.tables.SchemaRevision(), wrapper.tables.Schema())
+		if err := tx.QueryRowContext(ctx, query, schemaRevisionName, unifiedSchemaName).Scan(&storedHash, &stored.Exists); err != nil {
+			return fmt.Errorf("failed to read unified schema state: %w", err)
+		}
+		stored.Hash = string(storedHash)
+	}
+
 	// Leave a pristine database without a stored schema. An empty legacy schema
 	// must still replace an existing, stale unified copy during refresh.
-	if len(namespaces) == 0 && len(caveats) == 0 {
-		if !replaceExisting {
-			return nil
-		}
-		var exists bool
-		//nolint:gosec // Table names come from validated internal schema configuration.
-		query := fmt.Sprintf(`SELECT EXISTS (SELECT 1 FROM %s WHERE name = ? AND deleted_transaction = 9223372036854775807)`, wrapper.tables.Schema())
-		if err := tx.QueryRowContext(ctx, query, unifiedSchemaName).Scan(&exists); err != nil {
-			return err
-		}
-		if !exists {
-			return nil
-		}
+	if len(namespaces) == 0 && len(caveats) == 0 && !stored.Exists {
+		return nil
 	}
 
 	// Generate canonical schema for hash computation
@@ -139,6 +143,10 @@ func populateSchemaTables(ctx context.Context, wrapper TxWrapper, replaceExistin
 	schemaHash, err := generator.ComputeSchemaHash(allDefs)
 	if err != nil {
 		return fmt.Errorf("failed to compute schema hash: %w", err)
+	}
+
+	if err := common.CheckSchemaRefresh(ctx, stored, schemaHash); err != nil {
+		return err
 	}
 
 	// Create stored schema proto

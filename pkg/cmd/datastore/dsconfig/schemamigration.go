@@ -32,5 +32,8 @@ func (c *Config) ApplySchemaMigrationPhase() {
 			c.BootstrapSchemaMode = mode
 		}
 	}
+	// Legacy reads discard the schema hash, and skipping it keeps the refresh's
+	// write to the hash row from delaying revision reads on CockroachDB.
+	c.SchemaHashReadsDisabled = !c.BootstrapSchemaMode.ReadsFromNew()
 	c.MigrationPhase = ""
 }

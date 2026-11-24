@@ -6,6 +6,7 @@ import (
 
 	"cloud.google.com/go/spanner"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
@@ -87,21 +88,28 @@ func populateSchemaTables(ctx context.Context, rwt *spanner.ReadWriteTransaction
 		return fmt.Errorf("failed to query caveats: %w", err)
 	}
 
+	var stored common.UnifiedSchemaState
+	if replaceExisting {
+		var storedHash []byte
+		iter := rwt.Query(ctx, spanner.Statement{
+			SQL: `SELECT
+				(SELECT schema_hash FROM schema_revision WHERE name = @revision),
+				EXISTS (SELECT 1 FROM schema WHERE name = @name)`,
+			Params: map[string]any{"revision": schemaRevisionName, "name": unifiedSchemaName},
+		})
+		defer iter.Stop()
+		if err := iter.Do(func(row *spanner.Row) error {
+			return row.Columns(&storedHash, &stored.Exists)
+		}); err != nil {
+			return fmt.Errorf("failed to read unified schema state: %w", err)
+		}
+		stored.Hash = string(storedHash)
+	}
+
 	// Leave a pristine database without a stored schema. An empty legacy schema
 	// must still replace an existing, stale unified copy during refresh.
-	if len(namespaces) == 0 && len(caveats) == 0 {
-		if !replaceExisting {
-			return nil
-		}
-		var count int64
-		iter := rwt.Query(ctx, spanner.Statement{SQL: `SELECT COUNT(*) FROM schema WHERE name = @name`, Params: map[string]any{"name": unifiedSchemaName}})
-		defer iter.Stop()
-		if err := iter.Do(func(row *spanner.Row) error { return row.Columns(&count) }); err != nil {
-			return err
-		}
-		if count == 0 {
-			return nil
-		}
+	if len(namespaces) == 0 && len(caveats) == 0 && !stored.Exists {
+		return nil
 	}
 
 	// Generate canonical schema for hash computation
@@ -123,6 +131,10 @@ func populateSchemaTables(ctx context.Context, rwt *spanner.ReadWriteTransaction
 	schemaHash, err := generator.ComputeSchemaHash(allDefs)
 	if err != nil {
 		return fmt.Errorf("failed to compute schema hash: %w", err)
+	}
+
+	if err := common.CheckSchemaRefresh(ctx, stored, schemaHash); err != nil {
+		return err
 	}
 
 	// Create stored schema proto

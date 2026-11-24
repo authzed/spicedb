@@ -17,10 +17,25 @@ const (
 
 	// SchemaMigrationMode identifies the authoritative schema format for backfills.
 	SchemaMigrationMode
+
+	// SchemaMigrationModeConfigured reports that the operator set a schema mode
+	// or schema migration phase for the migration, and should be of type bool.
+	SchemaMigrationModeConfigured
 )
 
-// ShouldRefreshSchema preserves unified-only deployments whose legacy copy may be stale.
+// ShouldRefreshSchema reports whether the refresh copies legacy storage into
+// unified storage. An installation configured to read unified storage already
+// treats it as current, so there is nothing to copy. One configured to read
+// legacy storage always copies. Without a configured mode, the refresh copies
+// only where that cannot lose unified-only changes; see SchemaModeConfigured.
 func ShouldRefreshSchema(ctx context.Context) bool {
 	mode, _ := ctx.Value(SchemaMigrationMode).(schemamode.SchemaMode)
-	return mode != schemamode.SchemaModeReadNewWriteNew
+	return !SchemaModeConfigured(ctx) || !mode.ReadsFromNew()
+}
+
+// SchemaModeConfigured reports whether the migration was told the schema mode
+// the installation runs, explicitly or through a schema migration phase.
+func SchemaModeConfigured(ctx context.Context) bool {
+	configured, _ := ctx.Value(SchemaMigrationModeConfigured).(bool)
+	return configured
 }

@@ -34,6 +34,7 @@ type crdbOptions struct {
 	columnOptimizationOption       common.ColumnOptimizationOption
 	includeQueryParametersInTraces bool
 	watchDisabled                  bool
+	schemaHashReadsDisabled        bool
 	acquireTimeout                 time.Duration
 }
 
@@ -400,6 +401,14 @@ func WithColumnOptimization(isEnabled bool) Option {
 			po.columnOptimizationOption = common.ColumnOptimizationOptionNone
 		}
 	}
+}
+
+// WithSchemaHashReadsDisabled stops revision reads from also reading the stored
+// schema hash, which only unified schema reads use. A refresh migration's write
+// to the hash row makes concurrent hash reads wait for it to commit, so servers
+// that read legacy storage during a schema migration phase skip them.
+func WithSchemaHashReadsDisabled(isDisabled bool) Option {
+	return func(po *crdbOptions) { po.schemaHashReadsDisabled = isDisabled }
 }
 
 // WithWatchDisabled configures the datastore to disable watch functionality.

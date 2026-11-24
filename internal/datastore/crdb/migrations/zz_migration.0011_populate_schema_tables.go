@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
@@ -20,13 +21,33 @@ const (
 
 func init() {
 	if err := CRDBMigrations.Register("populate-schema-tables", "add-schema-tables", noNonAtomicMigration, func(ctx context.Context, tx pgx.Tx) error {
-		return populateSchemaTables(ctx, tx, false)
+		writes := &pgx.Batch{}
+		if err := populateSchemaTables(ctx, tx, writes, false); err != nil {
+			return err
+		}
+		return sendSchemaWrites(ctx, tx, writes)
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}
 }
 
-func populateSchemaTables(ctx context.Context, tx pgx.Tx, replaceExisting bool) error {
+// sendSchemaWrites pipelines the queued writes in a single round trip.
+func sendSchemaWrites(ctx context.Context, tx pgx.Tx, writes *pgx.Batch) error {
+	if writes.Len() == 0 {
+		return nil
+	}
+	if err := tx.SendBatch(ctx, writes).Close(); err != nil {
+		return fmt.Errorf("failed to write schema tables: %w", err)
+	}
+	return nil
+}
+
+// populateSchemaTables reads legacy storage and queues the unified writes onto
+// writes for the caller to send. Every HeadRevision reads the schema_revision
+// hash row, and a read that reaches an uncommitted write to it waits for this
+// transaction to commit. Deferring all writes to one batch after the reads and
+// encoding keeps that window to the final round trips before commit.
+func populateSchemaTables(ctx context.Context, tx pgx.Tx, writes *pgx.Batch, replaceExisting bool) error {
 	// Read all existing namespaces
 	rows, err := tx.Query(ctx, `
 			SELECT namespace, serialized_config
@@ -83,19 +104,22 @@ func populateSchemaTables(ctx context.Context, tx pgx.Tx, replaceExisting bool) 
 		return fmt.Errorf("error iterating caveats: %w", err)
 	}
 
+	var stored common.UnifiedSchemaState
+	if replaceExisting {
+		var storedHash []byte
+		if err := tx.QueryRow(ctx, `SELECT
+				(SELECT hash FROM schema_revision WHERE name = $1),
+				EXISTS (SELECT 1 FROM schema WHERE name = $2)`,
+			schemaRevisionName, unifiedSchemaName).Scan(&storedHash, &stored.Exists); err != nil {
+			return fmt.Errorf("failed to read unified schema state: %w", err)
+		}
+		stored.Hash = string(storedHash)
+	}
+
 	// Leave a pristine database without a stored schema. An empty legacy schema
 	// must still replace an existing, stale unified copy during refresh.
-	if len(namespaces) == 0 && len(caveats) == 0 {
-		if !replaceExisting {
-			return nil
-		}
-		var exists bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema WHERE name = $1)`, unifiedSchemaName).Scan(&exists); err != nil {
-			return err
-		}
-		if !exists {
-			return nil
-		}
+	if len(namespaces) == 0 && len(caveats) == 0 && !stored.Exists {
+		return nil
 	}
 
 	// Generate canonical schema for hash computation
@@ -119,6 +143,16 @@ func populateSchemaTables(ctx context.Context, tx pgx.Tx, replaceExisting bool) 
 		return fmt.Errorf("failed to compute schema hash: %w", err)
 	}
 
+	if err := common.CheckSchemaRefresh(ctx, stored, schemaHash); err != nil {
+		return err
+	}
+
+	// Unified storage that already matches legacy needs no rewrite, which leaves
+	// the hash row untouched and concurrent revision reads unaffected.
+	if stored.Exists && stored.Hash == schemaHash {
+		return nil
+	}
+
 	// Create stored schema proto
 	storedSchema := &core.StoredSchema{
 		Version: currentSchemaVersion,
@@ -139,12 +173,7 @@ func populateSchemaTables(ctx context.Context, tx pgx.Tx, replaceExisting bool) 
 	}
 
 	if replaceExisting {
-		if _, err := tx.Exec(ctx, `DELETE FROM schema WHERE name = $1`, unifiedSchemaName); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `DELETE FROM schema_revision WHERE name = $1`, schemaRevisionName); err != nil {
-			return err
-		}
+		writes.Queue(`DELETE FROM schema WHERE name = $1`, unifiedSchemaName)
 	}
 
 	// Insert schema chunks
@@ -156,23 +185,17 @@ func populateSchemaTables(ctx context.Context, tx pgx.Tx, replaceExisting bool) 
 		}
 		chunk := schemaData[start:end]
 
-		_, err = tx.Exec(ctx, `
+		writes.Queue(`
 				INSERT INTO schema (name, chunk_index, chunk_data)
 				VALUES ($1, $2, $3)
 			`, unifiedSchemaName, chunkIndex, chunk)
-		if err != nil {
-			return fmt.Errorf("failed to insert schema chunk %d: %w", chunkIndex, err)
-		}
 	}
 
-	// Insert schema hash
-	_, err = tx.Exec(ctx, `
-			INSERT INTO schema_revision (name, hash)
+	// Write the schema hash last, since revision reads contend on this row.
+	writes.Queue(`
+			UPSERT INTO schema_revision (name, hash)
 			VALUES ($1, $2)
 		`, schemaRevisionName, schemaHash)
-	if err != nil {
-		return fmt.Errorf("failed to insert schema hash: %w", err)
-	}
 
 	return nil
 }

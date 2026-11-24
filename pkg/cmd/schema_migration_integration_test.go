@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sync"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/require"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	testdatastore "github.com/authzed/spicedb/internal/testserver/datastore"
 	dscfg "github.com/authzed/spicedb/pkg/cmd/datastore"
 	"github.com/authzed/spicedb/pkg/datalayer"
@@ -89,7 +91,9 @@ func TestSchemaMigrationPhases(t *testing.T) {
 					require.NoError(t, err)
 					staleHash := datalayer.SchemaHash(before.Get().GetV1().GetSchemaHash())
 					legacyUpdateRevision := writeMigrationSchema(t, ds, tc.mode, tc.latest)
+					// The migration job runs with the preparation phase, as the servers do.
 					cfg.SchemaMode = tc.migrationMode
+					cfg.MigrationPhase = "schema-write-both-read-old"
 					require.NoError(t, migration.Run(ctx, cfg, migrate.Head))
 					ready, err = promotion.ReadyState(ctx)
 					require.NoError(t, err)
@@ -315,6 +319,325 @@ func TestPostgresSchemaRefreshBeforeFirstUnifiedWrite(t *testing.T) {
 			require.Equal(t, 1, liveVersions, "refresh and concurrent writers must not create multiple live schema versions")
 			require.NoError(t, conn.QueryRow(ctx, `SELECT COUNT(*) FROM schema WHERE name = 'unified_schema' AND deleted_xid = '9223372036854775807'::xid8`).Scan(&liveVersions))
 			require.Equal(t, 1, liveVersions, "the small schema must have exactly one live chunk")
+		})
+	}
+}
+
+// Every CockroachDB HeadRevision reads the schema_revision hash row, and a read
+// that reaches an uncommitted write to it waits for the writer to commit. A
+// refresh that finds unified storage already current must not write that row.
+func TestCockroachSchemaRefreshLeavesCurrentUnifiedSchemaUntouched(t *testing.T) {
+	ctx := t.Context()
+	running := testdatastore.RunDatastoreEngine(t, "cockroachdb")
+	uri := running.NewDatabase(t)
+	cfg := &migration.Config{DatastoreEngine: "cockroachdb", DatastoreURI: uri, Timeout: time.Minute, BatchSize: 1000}
+	pool := *dscfg.DefaultReadConnPool()
+	pool.MinOpenConns = 0
+	pool.MaxOpenConns = 2
+	require.NoError(t, migration.Run(ctx, cfg, "populate-schema-tables"))
+	ds, err := dscfg.NewDatastore(ctx, dscfg.WithEngine("cockroachdb"), dscfg.WithURI(uri),
+		dscfg.WithMigrationPhase("schema-write-both-read-old"), dscfg.WithReadConnPool(pool), dscfg.WithWriteConnPool(pool), dscfg.WithEnableDatastoreMetrics(false))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, ds.Close()) })
+	writeMigrationSchema(t, ds, datalayer.SchemaModeReadLegacyWriteBoth, "definition current {}")
+
+	conn, err := pgx.Connect(ctx, uri)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, conn.Close(context.Background())) })
+	const lastWrites = `SELECT
+		(SELECT crdb_internal_mvcc_timestamp::STRING FROM schema_revision WHERE name = 'current'),
+		(SELECT max(crdb_internal_mvcc_timestamp)::STRING FROM schema WHERE name = 'unified_schema')`
+	var hashBefore, schemaBefore string
+	require.NoError(t, conn.QueryRow(ctx, lastWrites).Scan(&hashBefore, &schemaBefore))
+
+	cfg.MigrationPhase = "schema-write-both-read-old"
+	require.NoError(t, migration.Run(ctx, cfg, migrate.Head))
+
+	var hashAfter, schemaAfter string
+	require.NoError(t, conn.QueryRow(ctx, lastWrites).Scan(&hashAfter, &schemaAfter))
+	require.Equal(t, hashBefore, hashAfter, "the refresh must not rewrite a current schema hash")
+	require.Equal(t, schemaBefore, schemaAfter, "the refresh must not rewrite current schema chunks")
+
+	var marker []byte
+	require.NoError(t, conn.QueryRow(ctx, `SELECT hash FROM schema_revision WHERE name = 'unified_schema_migration'`).Scan(&marker))
+	require.Regexp(t, `^legacy:\d+\.\d+$`, string(marker))
+}
+
+// schemaRefreshStall holds a lock that the refresh migration needs only after it
+// has written the unified schema, so the refresh waits with those writes
+// uncommitted while the test reads.
+type schemaRefreshStall struct {
+	release func()
+	stalled func(context.Context) (bool, error)
+}
+
+func stallSchemaRefresh(ctx context.Context, t *testing.T, engine, uri string) schemaRefreshStall {
+	t.Helper()
+	stall := heldSchemaRefresh(ctx, t, engine, uri)
+	// Release on failure too, so the refresh does not wait out its timeout.
+	release := sync.OnceFunc(stall.release)
+	t.Cleanup(release)
+	stall.release = release
+	return stall
+}
+
+func heldSchemaRefresh(ctx context.Context, t *testing.T, engine, uri string) schemaRefreshStall {
+	t.Helper()
+	switch engine {
+	case "mysql":
+		// MySQL writes the migration version with ALTER TABLE, which commits the
+		// refresh first, so stall the refresh's marker insert instead. A committed
+		// sentinel row sorts between the hash rows and the marker, so the refresh's
+		// locking scans of the hash rows stop at it, and only the marker insert
+		// enters the gap held after it.
+		db, err := sql.Open("mysql", uri)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, db.Close()) })
+		_, err = db.ExecContext(ctx, `INSERT INTO stored_schema_revision (name, hash, created_transaction) VALUES ('test_stall_sentinel', '', 0)`)
+		require.NoError(t, err)
+		tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+		require.NoError(t, err)
+		rows, err := tx.QueryContext(ctx, `SELECT name FROM stored_schema_revision WHERE name > 'test_stall_sentinel' FOR UPDATE`)
+		require.NoError(t, err)
+		require.False(t, rows.Next(), "nothing sorts after the sentinel")
+		require.NoError(t, rows.Err())
+		require.NoError(t, rows.Close())
+		return schemaRefreshStall{
+			release: func() { require.NoError(t, tx.Rollback()) },
+			stalled: func(ctx context.Context) (bool, error) {
+				var waiting int
+				err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM information_schema.processlist
+					WHERE info LIKE 'INSERT INTO stored_schema_revision (name, hash, created_transaction)%' AND time >= 1`).Scan(&waiting)
+				return waiting > 0, err
+			},
+		}
+	case "postgres":
+		// The migration framework updates the version row in the refresh's own
+		// transaction, after the refresh has written the unified schema.
+		conn, observer := connectPair(ctx, t, uri)
+		tx, err := conn.Begin(ctx)
+		require.NoError(t, err)
+		_, err = tx.Exec(ctx, `SELECT version_num FROM alembic_version FOR UPDATE`)
+		require.NoError(t, err)
+		return schemaRefreshStall{
+			release: func() { require.NoError(t, tx.Rollback(context.Background())) },
+			stalled: func(ctx context.Context) (bool, error) {
+				var waiting int
+				err := observer.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity
+					WHERE wait_event_type = 'Lock' AND query LIKE 'UPDATE alembic_version%'`).Scan(&waiting)
+				return waiting > 0, err
+			},
+		}
+	case "cockroachdb":
+		// CockroachDB makes plain reads wait on a locked version row, which would
+		// stall the migration before it starts. Instead, hold an uncommitted
+		// marker row: the refresh's batch writes the schema and its hash, then
+		// waits to insert its own marker.
+		conn, observer := connectPair(ctx, t, uri)
+		tx, err := conn.Begin(ctx)
+		require.NoError(t, err)
+		_, err = tx.Exec(ctx, `INSERT INTO schema_revision (name, hash) VALUES ('unified_schema_migration', 'held')`)
+		require.NoError(t, err)
+		return schemaRefreshStall{
+			release: func() { require.NoError(t, tx.Rollback(context.Background())) },
+			stalled: func(ctx context.Context) (bool, error) {
+				var waiting int
+				err := observer.QueryRow(ctx, `SELECT count(*) FROM crdb_internal.cluster_locks
+					WHERE table_name = 'schema_revision' AND NOT granted`).Scan(&waiting)
+				return waiting > 0, err
+			},
+		}
+	default:
+		require.FailNow(t, "no refresh stall for engine", engine)
+		return schemaRefreshStall{}
+	}
+}
+
+func connectPair(ctx context.Context, t *testing.T, uri string) (*pgx.Conn, *pgx.Conn) {
+	t.Helper()
+	conn, err := pgx.Connect(ctx, uri)
+	require.NoError(t, err)
+	observer, err := pgx.Connect(ctx, uri)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, conn.Close(context.Background()))
+		require.NoError(t, observer.Close(context.Background()))
+	})
+	return conn, observer
+}
+
+// Servers in the preparation phase keep serving while the refresh runs. None of
+// their reads may wait on the refresh's uncommitted schema writes or locks.
+func TestSchemaRefreshDoesNotBlockPreparationReads(t *testing.T) {
+	// Spanner is excluded: its emulator runs one read-write transaction at a
+	// time, and serving reads use lock-free read-only transactions.
+	for _, engine := range []string{"postgres", "mysql", "cockroachdb"} {
+		t.Run(engine, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
+			defer cancel()
+			running := testdatastore.RunDatastoreEngine(t, engine)
+			uri := running.NewDatabase(t)
+			previous := "populate-schema-tables"
+			if engine == "mysql" {
+				previous = "identifiers_case_sensitive"
+			}
+			cfg := &migration.Config{DatastoreEngine: engine, DatastoreURI: uri, Timeout: time.Minute, BatchSize: 1000}
+			require.NoError(t, migration.Run(ctx, cfg, previous))
+
+			pool := *dscfg.DefaultReadConnPool()
+			pool.MinOpenConns = 0
+			pool.MaxOpenConns = 4
+			ds, err := dscfg.NewDatastore(ctx, dscfg.WithEngine(engine), dscfg.WithURI(uri),
+				dscfg.WithMigrationPhase("schema-write-both-read-old"), dscfg.WithReadConnPool(pool), dscfg.WithWriteConnPool(pool),
+				dscfg.WithEnableDatastoreMetrics(false), dscfg.WithRevisionQuantization(0), dscfg.WithWriteAcquisitionTimeout(5*time.Second))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, ds.Close()) })
+
+			// Leave the unified copy stale so the refresh rewrites the hash row
+			// that revision reads consult.
+			writeMigrationSchema(t, ds, datalayer.SchemaModeReadLegacyWriteBoth, "definition stale {}")
+			writeMigrationSchema(t, ds, datalayer.SchemaModeReadLegacyWriteLegacy, "definition current {}")
+
+			stall := stallSchemaRefresh(ctx, t, engine, uri)
+			cfg.MigrationPhase = "schema-write-both-read-old"
+			migrated := make(chan error, 1)
+			go func() { migrated <- migration.Run(ctx, cfg, migrate.Head) }()
+			require.Eventually(t, func() bool {
+				select {
+				case err := <-migrated:
+					require.FailNow(t, "the refresh finished without reaching the held lock", "%v", err)
+				default:
+				}
+				stalled, err := stall.stalled(ctx)
+				require.NoError(t, err)
+				return stalled
+			}, 30*time.Second, 50*time.Millisecond, "the refresh must reach the held lock")
+
+			// The refresh's writes are now uncommitted. A read that waits on them
+			// does not observe its context deadline, so bound each one directly.
+			read := func(name string, f func(context.Context) error) {
+				readCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				defer cancel()
+				done := make(chan error, 1)
+				go func() { done <- f(readCtx) }()
+				select {
+				case err := <-done:
+					require.NoError(t, err, "%s failed during the refresh", name)
+				case <-time.After(5 * time.Second):
+					require.FailNow(t, name+" waited on the refresh")
+				}
+			}
+			dl := datalayer.NewDataLayer(ds, datalayer.WithSchemaMode(datalayer.SchemaModeReadLegacyWriteBoth))
+			var head datastore.Revision
+			var hash datalayer.SchemaHash
+			read("HeadRevision", func(ctx context.Context) (err error) {
+				head, hash, err = dl.HeadRevision(ctx)
+				return err
+			})
+			read("OptimizedRevision", func(ctx context.Context) error {
+				_, _, err := dl.OptimizedRevision(ctx)
+				return err
+			})
+			read("CheckRevision", func(ctx context.Context) error { return dl.CheckRevision(ctx, head) })
+			read("ReadSchema", func(ctx context.Context) error {
+				schema, err := dl.SnapshotReader(head, hash).ReadSchema(ctx)
+				if err != nil {
+					return err
+				}
+				definitions, err := schema.ListAllTypeDefinitions(ctx)
+				if err != nil {
+					return err
+				}
+				if len(definitions) != 1 || definitions[0].Definition.Name != "current" {
+					return fmt.Errorf("unexpected legacy definitions %v", definitions)
+				}
+				return nil
+			})
+			read("QueryRelationships", func(ctx context.Context) error {
+				it, err := ds.SnapshotReader(head).QueryRelationships(ctx, datastore.RelationshipsFilter{OptionalResourceType: "current"})
+				if err != nil {
+					return err
+				}
+				_, err = datastore.IteratorToSlice(it)
+				return err
+			})
+
+			stall.release()
+			require.NoError(t, <-migrated)
+			after, err := ds.HeadRevision(ctx)
+			require.NoError(t, err)
+			stored, err := ds.SnapshotReader(after.Revision).ReadStoredSchema(ctx)
+			require.NoError(t, err)
+			require.Contains(t, stored.Get().GetV1().GetNamespaceDefinitions(), "current")
+		})
+	}
+}
+
+// The refresh follows the schema mode the installation's servers run: modes that
+// read unified storage keep it, and modes that read legacy storage copy legacy
+// storage over it. Without a configured mode, it refuses only where copying
+// would replace a unified schema that differs from legacy storage.
+func TestSchemaRefreshFollowsConfiguredMode(t *testing.T) {
+	for _, engine := range []string{"postgres", "mysql", "cockroachdb", "spanner"} {
+		t.Run(engine, func(t *testing.T) {
+			running := testdatastore.RunDatastoreEngine(t, engine)
+			previous := "populate-schema-tables"
+			if engine == "mysql" {
+				previous = "identifiers_case_sensitive"
+			}
+			for _, tc := range []struct {
+				name, schemaMode, phase string
+				unifiedOnly             bool
+				wantErr                 bool
+				wantDefinition          string
+			}{
+				{name: "preparation phase", phase: "schema-write-both-read-old", unifiedOnly: true, wantDefinition: "legacy"},
+				{name: "legacy mode", schemaMode: "read-legacy-write-both", unifiedOnly: true, wantDefinition: "legacy"},
+				{name: "unified only mode", schemaMode: "read-new-write-new", unifiedOnly: true, wantDefinition: "unified_only"},
+				{name: "unified only mode in a phase", schemaMode: "read-new-write-new", phase: "schema-write-both-read-old", unifiedOnly: true, wantDefinition: "unified_only"},
+				{name: "unified read mode", schemaMode: "read-new-write-both", unifiedOnly: true, wantDefinition: "unified_only"},
+				{name: "unconfigured with differing schemas", unifiedOnly: true, wantErr: true, wantDefinition: "unified_only"},
+				{name: "unconfigured without unified schema", wantDefinition: "legacy"},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					ctx := t.Context()
+					uri := running.NewDatabase(t)
+					cfg := &migration.Config{DatastoreEngine: engine, DatastoreURI: uri, Timeout: time.Minute, BatchSize: 1000}
+					require.NoError(t, migration.Run(ctx, cfg, previous))
+					pool := *dscfg.DefaultReadConnPool()
+					pool.MinOpenConns = 0
+					pool.MaxOpenConns = 2
+					ds, err := dscfg.NewDatastore(ctx, dscfg.WithEngine(engine), dscfg.WithURI(uri),
+						dscfg.WithMigrationPhase("schema-write-both-read-old"), dscfg.WithReadConnPool(pool), dscfg.WithWriteConnPool(pool),
+						dscfg.WithEnableDatastoreMetrics(false), dscfg.WithRevisionQuantization(0), dscfg.WithWriteAcquisitionTimeout(5*time.Second))
+					require.NoError(t, err)
+					t.Cleanup(func() { require.NoError(t, ds.Close()) })
+
+					writeMigrationSchema(t, ds, datalayer.SchemaModeReadLegacyWriteLegacy, "definition legacy {}")
+					if tc.unifiedOnly {
+						writeMigrationSchema(t, ds, datalayer.SchemaModeReadNewWriteNew, "definition unified_only {}")
+					}
+
+					cfg.SchemaMode, cfg.MigrationPhase = tc.schemaMode, tc.phase
+					err = migration.Run(ctx, cfg, migrate.Head)
+					if tc.wantErr {
+						require.ErrorIs(t, err, common.ErrSchemaRefreshModeRequired)
+						ready, err := ds.ReadyState(ctx)
+						require.NoError(t, err)
+						require.True(t, ready.IsReady, "a refused refresh must leave the preparation revision in place")
+					} else {
+						require.NoError(t, err)
+					}
+
+					head, err := ds.HeadRevision(ctx)
+					require.NoError(t, err)
+					stored, err := ds.SnapshotReader(head.Revision).ReadStoredSchema(ctx)
+					require.NoError(t, err)
+					definitions := stored.Get().GetV1().GetNamespaceDefinitions()
+					require.Len(t, definitions, 1)
+					require.Contains(t, definitions, tc.wantDefinition)
+				})
+			}
 		})
 	}
 }

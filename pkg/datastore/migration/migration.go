@@ -135,6 +135,8 @@ func Run(ctx context.Context, cfg *Config, revision string) error {
 		return err
 	}
 	ctx = context.WithValue(ctx, migrate.SchemaMigrationMode, mode)
+	_, phased := schemamode.ModeForMigrationPhase(cfg.MigrationPhase)
+	ctx = context.WithValue(ctx, migrate.SchemaMigrationModeConfigured, cfg.SchemaMode != "" || phased)
 
 	e, ok := migratableEngines[cfg.DatastoreEngine]
 	if !ok {

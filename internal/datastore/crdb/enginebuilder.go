@@ -74,5 +74,6 @@ func newDatastoreFromConfig(ctx context.Context, opts datastorecfg.Config) (data
 		WithColumnOptimization(opts.ExperimentalColumnOptimization),
 		IncludeQueryParametersInTraces(opts.IncludeQueryParametersInTraces),
 		WithWatchDisabled(opts.DisableWatchSupport),
+		WithSchemaHashReadsDisabled(opts.SchemaHashReadsDisabled),
 	)
 }

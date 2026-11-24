@@ -217,6 +217,7 @@ func newCRDBDatastore(ctx context.Context, url string, options ...Option) (datas
 		supportsIntegrity:            config.withIntegrity,
 		gcWindow:                     config.gcWindow,
 		watchEnabled:                 !config.watchDisabled,
+		schemaHashReadsDisabled:      config.schemaHashReadsDisabled,
 		schema:                       *schema.Schema(config.columnOptimizationOption, config.withIntegrity, false),
 	}
 
@@ -366,6 +367,8 @@ type crdbDatastore struct {
 	filterMaximumIDCount uint16
 	supportsIntegrity    bool
 	watchEnabled         bool
+
+	schemaHashReadsDisabled bool
 
 	uniqueID atomic.Pointer[string]
 }
@@ -580,7 +583,7 @@ func (cds *crdbDatastore) Close() error {
 }
 
 func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.RevisionWithSchemaHash, error) {
-	rev, schemaHash, err := cds.headRevisionWithSchemaHash(ctx)
+	rev, schemaHash, err := cds.headRevisionInternal(ctx)
 	if err != nil {
 		return datastore.RevisionWithSchemaHash{}, err
 	}
@@ -589,6 +592,10 @@ func (cds *crdbDatastore) HeadRevision(ctx context.Context) (datastore.RevisionW
 }
 
 func (cds *crdbDatastore) headRevisionInternal(ctx context.Context) (datastore.Revision, string, error) {
+	if cds.schemaHashReadsDisabled {
+		rev, err := cds.headRevisionInternalNoHash(ctx)
+		return rev, "", err
+	}
 	return cds.headRevisionWithSchemaHash(ctx)
 }
 

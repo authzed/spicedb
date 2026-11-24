@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"github.com/authzed/spicedb/internal/datastore/common"
 	core "github.com/authzed/spicedb/pkg/proto/core/v1"
 	"github.com/authzed/spicedb/pkg/schemadsl/compiler"
 	"github.com/authzed/spicedb/pkg/schemadsl/generator"
@@ -91,19 +92,22 @@ func populateSchemaTables(ctx context.Context, tx pgx.Tx, replaceExisting bool) 
 		return fmt.Errorf("error iterating caveats: %w", err)
 	}
 
+	var stored common.UnifiedSchemaState
+	if replaceExisting {
+		var storedHash []byte
+		if err := tx.QueryRow(ctx, `SELECT
+				(SELECT hash FROM schema_revision WHERE name = $1 AND deleted_xid = '9223372036854775807'::xid8),
+				EXISTS (SELECT 1 FROM schema WHERE name = $2 AND deleted_xid = '9223372036854775807'::xid8)`,
+			schemaRevisionName, unifiedSchemaName).Scan(&storedHash, &stored.Exists); err != nil {
+			return fmt.Errorf("failed to read unified schema state: %w", err)
+		}
+		stored.Hash = string(storedHash)
+	}
+
 	// Leave a pristine database without a stored schema. An empty legacy schema
 	// must still replace an existing, stale unified copy during refresh.
-	if len(namespaces) == 0 && len(caveats) == 0 {
-		if !replaceExisting {
-			return nil
-		}
-		var exists bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema WHERE name = $1 AND deleted_xid = '9223372036854775807'::xid8)`, unifiedSchemaName).Scan(&exists); err != nil {
-			return err
-		}
-		if !exists {
-			return nil
-		}
+	if len(namespaces) == 0 && len(caveats) == 0 && !stored.Exists {
+		return nil
 	}
 
 	// Generate canonical schema for hash computation
@@ -125,6 +129,10 @@ func populateSchemaTables(ctx context.Context, tx pgx.Tx, replaceExisting bool) 
 	schemaHash, err := generator.ComputeSchemaHash(allDefs)
 	if err != nil {
 		return fmt.Errorf("failed to compute schema hash: %w", err)
+	}
+
+	if err := common.CheckSchemaRefresh(ctx, stored, schemaHash); err != nil {
+		return err
 	}
 
 	// Create stored schema proto

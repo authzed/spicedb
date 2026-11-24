@@ -11,21 +11,20 @@ import (
 
 func init() {
 	if err := CRDBMigrations.Register("refresh-schema-tables", "populate-schema-tables", noNonAtomicMigration, func(ctx context.Context, tx pgx.Tx) error {
-		source := common.SchemaMigrationSourceUnified
-		if migrate.ShouldRefreshSchema(ctx) {
-			if err := populateSchemaTables(ctx, tx, true); err != nil {
-				return err
-			}
-			// Exposing cluster_logical_timestamp pins this transaction's commit
-			// timestamp, so the boundary agrees with MVCC visibility.
-			var revision string
-			if err := tx.QueryRow(ctx, `SELECT cluster_logical_timestamp()::STRING`).Scan(&revision); err != nil {
-				return err
-			}
-			source = common.SchemaMigrationSourceLegacy + ":" + revision
+		writes := &pgx.Batch{}
+		if !migrate.ShouldRefreshSchema(ctx) {
+			writes.Queue(`INSERT INTO schema_revision (name, hash) VALUES ($1, $2)`, common.SchemaMigrationMarkerName, []byte(common.SchemaMigrationSourceUnified))
+			return sendSchemaWrites(ctx, tx, writes)
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO schema_revision (name, hash) VALUES ($1, $2)`, common.SchemaMigrationMarkerName, []byte(source))
-		return err
+		if err := populateSchemaTables(ctx, tx, writes, true); err != nil {
+			return err
+		}
+		// Exposing cluster_logical_timestamp pins this transaction's commit
+		// timestamp, so the boundary agrees with MVCC visibility. It is read in
+		// the same batch as the writes so no extra round trip holds their intents.
+		writes.Queue(`INSERT INTO schema_revision (name, hash) VALUES ($1, ($2 || cluster_logical_timestamp()::STRING)::BYTES)`,
+			common.SchemaMigrationMarkerName, common.SchemaMigrationSourceLegacy+":")
+		return sendSchemaWrites(ctx, tx, writes)
 	}); err != nil {
 		panic("failed to register migration: " + err.Error())
 	}

@@ -110,6 +110,11 @@ type Config struct {
 	// data. The zero value (SchemaModeReadLegacyWriteLegacy) preserves prior behavior.
 	BootstrapSchemaMode schemamode.SchemaMode `debugmap:"visible"`
 
+	// SchemaHashReadsDisabled stops engines from reading the stored schema hash
+	// with each revision. Schema migration phases that read legacy storage set it,
+	// since legacy reads discard the hash.
+	SchemaHashReadsDisabled bool `debugmap:"visible"`
+
 	// Hedging
 	RequestHedgingEnabled          bool          `debugmap:"visible"`
 	RequestHedgingInitialSlowValue time.Duration `debugmap:"visible"`
