@@ -568,6 +568,7 @@ spicedb serve [flags]
       --datastore-read-replica-conn-pool-read-min-open int                              number of minimum concurrent connections open in a remote datastore's connection pool (default 20)
       --datastore-read-replica-conn-uri stringArray                                     connection string used by remote datastores for read replicas (e.g. "postgres://postgres:password@localhost:5432/spicedb"). (Postgres and MySQL drivers only).
       --datastore-read-replica-credentials-provider-name string                         retrieve datastore credentials dynamically using ("aws-iam")
+      --datastore-readiness-recheck-interval duration                                   if non-zero, keep checking the datastore at this interval after startup and report the gRPC health service as NOT_SERVING after two consecutive failures (and SERVING again once it recovers), so that it can be used as a readiness probe. 0 checks only at startup
       --datastore-readonly                                                              set the service to read-only mode
       --datastore-relationship-integrity-current-key-filename string                    current key filename for relationship integrity checks
       --datastore-relationship-integrity-current-key-id string                          current key id for relationship integrity checks
