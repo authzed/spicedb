@@ -117,7 +117,7 @@ func (b *postgresTester) hostConnectionString(ctx context.Context) (string, erro
 
 func (b *postgresTester) NewDatastore(t testing.TB, initFunc InitFunc) datastore.Datastore {
 	t.Helper()
-	ctx := context.WithValue(t.Context(), migrate.BackfillBatchSize, uint64(1000))
+	ctx := migrate.BackfillBatchSize.Set(t.Context(), 1000)
 
 	var uri string
 

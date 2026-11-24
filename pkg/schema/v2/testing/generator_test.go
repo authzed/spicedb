@@ -60,3 +60,107 @@ func TestGenerateRelationshipsConformsToRegex(t *testing.T) {
 		}
 	})
 }
+
+func TestGenerateSchemaComposes(t *testing.T) {
+	rapid.Check(t, func(t *rapid.T) {
+		first, _ := GenerateSchema(t)
+		second, _ := GenerateSchema(t)
+
+		_, err := schema.ResolveSchema(first)
+		require.NoError(t, err)
+		_, err = schema.ResolveSchema(second)
+		require.NoError(t, err)
+	})
+}
+
+func TestNewRelationshipGeneratorHandWritten(t *testing.T) {
+	s := mustSchema(t, `
+		definition user {}
+
+		definition doc {
+			relation viewer: user
+			permission view = viewer
+		}`)
+
+	relGenerator, err := NewRelationshipGenerator(s)
+	require.NoError(t, err)
+
+	rapid.Check(t, func(t *rapid.T) {
+		counter := 0
+		for relationship := range relGenerator.GenerateRelationships(t) {
+			require.Equal(t, "doc", relationship.Resource.ObjectType)
+			require.Equal(t, "viewer", relationship.Resource.Relation)
+			require.Equal(t, "user", relationship.Subject.ObjectType)
+			require.Equal(t, tuple.Ellipsis, relationship.Subject.Relation)
+			counter++
+			if counter >= 20 {
+				break
+			}
+		}
+	})
+}
+
+func TestNewRelationshipGeneratorRejectsUnsupported(t *testing.T) {
+	tcs := []struct {
+		name     string
+		schema   string
+		expected string
+	}{
+		{
+			"caveat",
+			`caveat somecaveat(x int) { x == 1 }
+			definition user {}
+			definition doc {
+				relation viewer: user with somecaveat
+			}`,
+			"caveat",
+		},
+		{
+			"wildcard",
+			`definition user {}
+			definition doc {
+				relation viewer: user:*
+			}`,
+			"wildcard",
+		},
+		{
+			"expiration",
+			`use expiration
+			definition user {}
+			definition doc {
+				relation viewer: user with expiration
+			}`,
+			"expiration",
+		},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := NewRelationshipGenerator(mustSchema(t, tc.schema))
+			require.ErrorContains(t, err, "unsupported schema feature")
+			require.ErrorContains(t, err, tc.expected)
+			require.ErrorContains(t, err, "doc#viewer")
+		})
+	}
+}
+
+func TestRelationshipGeneratorWithObjectIDs(t *testing.T) {
+	objectIDs := []string{"first", "second", "third"}
+
+	CheckWithSchema(t, func(t *rapid.T, schema *schema.Schema, relGenerator RelationshipGenerator) {
+		counter := 0
+		for relationship := range relGenerator.WithObjectIDs(objectIDs...).GenerateRelationships(t) {
+			require.Contains(t, objectIDs, relationship.Resource.ObjectID)
+			require.Contains(t, objectIDs, relationship.Subject.ObjectID)
+			counter++
+			if counter >= 20 {
+				break
+			}
+		}
+	})
+}
+
+func TestNewRelationshipGeneratorNoResources(t *testing.T) {
+	_, err := NewRelationshipGenerator(mustSchema(t, `definition user {}`))
+	require.ErrorContains(t, err, "no relations")
+}

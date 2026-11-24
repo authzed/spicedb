@@ -8,6 +8,7 @@ import (
 	"golang.org/x/tools/go/analysis/multichecker"
 
 	"github.com/authzed/spicedb/tools/analyzers/closeafterusagecheck"
+	"github.com/authzed/spicedb/tools/analyzers/ctxkeycheck"
 	"github.com/authzed/spicedb/tools/analyzers/exprstatementcheck"
 	"github.com/authzed/spicedb/tools/analyzers/iferrafterrowclosecheck"
 	"github.com/authzed/spicedb/tools/analyzers/lendowncastcheck"
@@ -35,6 +36,7 @@ func main() {
 		zerologmarshalcheck.Analyzer(),
 		singleflightcheck.Analyzer(),
 		telemetryconvcheck.Analyzer(),
+		ctxkeycheck.Analyzer(),
 	}
 
 	// multichecker disables all analyzers unless explicitly enabled via -<name> flags, which means forgetting to

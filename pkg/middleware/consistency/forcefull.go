@@ -43,8 +43,8 @@ func ForceFullConsistencyStreamServerInterceptor(serviceLabel string) grpc.Strea
 }
 
 func setFullConsistencyRevisionToContext(ctx context.Context, req any, dl datalayer.DataLayer, serviceLabel string, _ MismatchingTokenOption) error {
-	handle := ctx.Value(revisionKey)
-	if handle == nil {
+	rh, ok := revisionKey.Value(ctx)
+	if !ok {
 		return nil
 	}
 
@@ -57,7 +57,6 @@ func setFullConsistencyRevisionToContext(ctx context.Context, req any, dl datala
 		if err != nil {
 			return rewriteDatastoreError(err)
 		}
-		rh := handle.(*revisionHandle)
 		rh.revision = databaseRev
 		rh.schemaHash = hash
 	}
