@@ -106,19 +106,68 @@ type AppliedSchemaChanges struct {
 // ApplySchemaChanges applies schema changes found in the validated changes struct, via the specified
 // ReadWriteTransaction.
 func ApplySchemaChanges(ctx context.Context, rwt datalayer.ReadWriteTransaction, caveatTypeSet *caveattypes.TypeSet, validated *ValidatedSchemaChanges) (*AppliedSchemaChanges, error) {
+	return ApplySchemaChangesWithQuerier(ctx, rwt, rwt, caveatTypeSet, validated)
+}
+
+// ApplySchemaChangesWithQuerier applies schema changes like ApplySchemaChanges, but runs the
+// checks for relationships that the changes would orphan against querier instead of rwt.
+func ApplySchemaChangesWithQuerier(ctx context.Context, rwt datalayer.ReadWriteTransaction, querier RelationshipQuerier, caveatTypeSet *caveattypes.TypeSet, validated *ValidatedSchemaChanges) (*AppliedSchemaChanges, error) {
 	ctx, span := tracer.Start(ctx, "schema.ApplySchemaChanges")
 	defer span.End()
-	sr, err := rwt.ReadSchema(ctx)
+	existingCaveats, existingObjectDefs, err := readExistingDefinitions(ctx, rwt)
 	if err != nil {
-		if !errors.Is(err, datastore.ErrSchemaNotFound) {
-			return nil, err
+		return nil, err
+	}
+	return applySchemaChangesOverExisting(ctx, rwt, querier, caveatTypeSet, validated, existingCaveats, existingObjectDefs)
+}
+
+// CheckSchemaChanges runs the checks of ApplySchemaChanges against reader, without writing
+// anything: it fails if the changes would leave relationships without schema. It returns the
+// text of the schema it diffed against, which is empty if there is no schema.
+func CheckSchemaChanges(ctx context.Context, reader datalayer.RevisionedReader, caveatTypeSet *caveattypes.TypeSet, validated *ValidatedSchemaChanges) (string, error) {
+	ctx, span := tracer.Start(ctx, "schema.CheckSchemaChanges")
+	defer span.End()
+	existingCaveats, existingObjectDefs, err := readExistingDefinitions(ctx, reader)
+	if err != nil {
+		return "", err
+	}
+	if _, err := checkSchemaChanges(ctx, reader, caveatTypeSet, validated, existingCaveats, existingObjectDefs); err != nil {
+		return "", err
+	}
+	return ExistingSchemaText(ctx, reader)
+}
+
+// ExistingSchemaText returns the text of the schema reader sees, or an empty string if there
+// is no schema.
+func ExistingSchemaText(ctx context.Context, reader datalayer.RevisionedReader) (string, error) {
+	sr, err := reader.ReadSchema(ctx)
+	if err != nil {
+		if errors.Is(err, datastore.ErrSchemaNotFound) {
+			return "", nil
 		}
-		return ApplySchemaChangesOverExisting(ctx, rwt, caveatTypeSet, validated, nil, nil)
+		return "", err
+	}
+	text, err := sr.SchemaText(ctx)
+	if errors.Is(err, datastore.ErrSchemaNotFound) {
+		return "", nil
+	}
+	return text, err
+}
+
+// readExistingDefinitions returns the caveat and object definitions reader sees. Both are empty
+// if there is no schema.
+func readExistingDefinitions(ctx context.Context, reader datalayer.RevisionedReader) ([]*core.CaveatDefinition, []*core.NamespaceDefinition, error) {
+	sr, err := reader.ReadSchema(ctx)
+	if err != nil {
+		if errors.Is(err, datastore.ErrSchemaNotFound) {
+			return nil, nil, nil
+		}
+		return nil, nil, err
 	}
 
 	existingCaveatDefs, err := sr.ListAllCaveatDefinitions(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	existingCaveats := make([]*core.CaveatDefinition, 0, len(existingCaveatDefs))
 	for _, caveatDef := range existingCaveatDefs {
@@ -127,14 +176,14 @@ func ApplySchemaChanges(ctx context.Context, rwt datalayer.ReadWriteTransaction,
 
 	existingTypeDefs, err := sr.ListAllTypeDefinitions(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	existingObjectDefs := make([]*core.NamespaceDefinition, 0, len(existingTypeDefs))
 	for _, typeDef := range existingTypeDefs {
 		existingObjectDefs = append(existingObjectDefs, typeDef.Definition)
 	}
 
-	return ApplySchemaChangesOverExisting(ctx, rwt, caveatTypeSet, validated, existingCaveats, existingObjectDefs)
+	return existingCaveats, existingObjectDefs, nil
 }
 
 // ApplySchemaChangesOverExisting applies schema changes found in the validated changes struct, against
@@ -149,8 +198,29 @@ func ApplySchemaChangesOverExisting(
 	existingCaveats []*core.CaveatDefinition,
 	existingObjectDefs []*core.NamespaceDefinition,
 ) (*AppliedSchemaChanges, error) {
-	ctx, span := tracer.Start(ctx, "schema.ApplySchemaChangesOverExisting")
-	defer span.End()
+	return applySchemaChangesOverExisting(ctx, rwt, rwt, caveatTypeSet, validated, existingCaveats, existingObjectDefs)
+}
+
+// checkedSchemaChanges is the result of checkSchemaChanges.
+type checkedSchemaChanges struct {
+	caveatDefsWithChanges  []*core.CaveatDefinition
+	objectDefsWithChanges  []*core.NamespaceDefinition
+	existingCaveatDefNames *mapz.Set[string]
+	existingObjectDefNames *mapz.Set[string]
+	removedCaveatDefNames  *mapz.Set[string]
+	removedObjectDefNames  *mapz.Set[string]
+}
+
+// checkSchemaChanges diffs the validated changes against the existing definitions and uses
+// querier to check that the changes leave no relationship without schema.
+func checkSchemaChanges(
+	ctx context.Context,
+	querier RelationshipQuerier,
+	caveatTypeSet *caveattypes.TypeSet,
+	validated *ValidatedSchemaChanges,
+	existingCaveats []*core.CaveatDefinition,
+	existingObjectDefs []*core.NamespaceDefinition,
+) (*checkedSchemaChanges, error) {
 	// Build a map of existing caveats to determine those being removed, if any.
 	existingCaveatDefMap := make(map[string]*core.CaveatDefinition, len(existingCaveats))
 	existingCaveatDefNames := mapz.NewSet[string]()
@@ -163,7 +233,7 @@ func ApplySchemaChangesOverExisting(
 	// For each caveat definition, perform a diff and ensure the changes will not result in type errors.
 	caveatDefsWithChanges := make([]*core.CaveatDefinition, 0, len(validated.compiled.CaveatDefinitions))
 	for _, caveatDef := range validated.compiled.CaveatDefinitions {
-		diff, err := sanityCheckCaveatChanges(ctx, rwt, caveatTypeSet, caveatDef, existingCaveatDefMap)
+		diff, err := sanityCheckCaveatChanges(caveatTypeSet, caveatDef, existingCaveatDefMap)
 		if err != nil {
 			return nil, err
 		}
@@ -187,20 +257,8 @@ func ApplySchemaChangesOverExisting(
 	// breaking changes.
 	objectDefsWithChanges := make([]*core.NamespaceDefinition, 0, len(validated.compiled.ObjectDefinitions))
 	for _, nsdef := range validated.compiled.ObjectDefinitions {
-		diff, err := sanityCheckNamespaceChanges(ctx, rwt, nsdef, existingObjectDefMap)
+		diff, err := sanityCheckNamespaceChanges(ctx, querier, nsdef, existingObjectDefMap)
 		if err != nil {
-			return nil, err
-		}
-
-		// Annotate every definition, not only changed ones: the non-additive path below
-		// writes all compiled definitions, so an unannotated copy of an unchanged
-		// definition would overwrite the stored, annotated one.
-		vts, ok := validated.validatedDefinitions[nsdef.Name]
-		if !ok {
-			return nil, spiceerrors.MustBugf("validated type system not found for namespace `%s`", nsdef.Name)
-		}
-
-		if err := namespace.AnnotateNamespace(vts); err != nil {
 			return nil, err
 		}
 
@@ -223,8 +281,57 @@ func ApplySchemaChangesOverExisting(
 	removedObjectDefNames := existingObjectDefNames.Subtract(validated.newObjectDefNames)
 	if !validated.additiveOnly {
 		if err := removedObjectDefNames.ForEach(func(nsdefName string) error {
-			return ensureNoRelationshipsExistWithResourceType(ctx, rwt, nsdefName)
+			return ensureNoRelationshipsExistWithResourceType(ctx, querier, nsdefName)
 		}); err != nil {
+			return nil, err
+		}
+	}
+
+	return &checkedSchemaChanges{
+		caveatDefsWithChanges:  caveatDefsWithChanges,
+		objectDefsWithChanges:  objectDefsWithChanges,
+		existingCaveatDefNames: existingCaveatDefNames,
+		existingObjectDefNames: existingObjectDefNames,
+		removedCaveatDefNames:  removedCaveatDefNames,
+		removedObjectDefNames:  removedObjectDefNames,
+	}, nil
+}
+
+// applySchemaChangesOverExisting implements ApplySchemaChangesOverExisting, running the
+// relationship checks against querier.
+func applySchemaChangesOverExisting(
+	ctx context.Context,
+	rwt datalayer.ReadWriteTransaction,
+	querier RelationshipQuerier,
+	caveatTypeSet *caveattypes.TypeSet,
+	validated *ValidatedSchemaChanges,
+	existingCaveats []*core.CaveatDefinition,
+	existingObjectDefs []*core.NamespaceDefinition,
+) (*AppliedSchemaChanges, error) {
+	ctx, span := tracer.Start(ctx, "schema.ApplySchemaChangesOverExisting")
+	defer span.End()
+
+	checked, err := checkSchemaChanges(ctx, querier, caveatTypeSet, validated, existingCaveats, existingObjectDefs)
+	if err != nil {
+		return nil, err
+	}
+	caveatDefsWithChanges := checked.caveatDefsWithChanges
+	objectDefsWithChanges := checked.objectDefsWithChanges
+	existingCaveatDefNames := checked.existingCaveatDefNames
+	existingObjectDefNames := checked.existingObjectDefNames
+	removedCaveatDefNames := checked.removedCaveatDefNames
+	removedObjectDefNames := checked.removedObjectDefNames
+
+	// Annotate every definition, not only changed ones: the non-additive path below
+	// writes all compiled definitions, so an unannotated copy of an unchanged
+	// definition would overwrite the stored, annotated one.
+	for _, nsdef := range validated.compiled.ObjectDefinitions {
+		vts, ok := validated.validatedDefinitions[nsdef.Name]
+		if !ok {
+			return nil, spiceerrors.MustBugf("validated type system not found for namespace `%s`", nsdef.Name)
+		}
+
+		if err := namespace.AnnotateNamespace(vts); err != nil {
 			return nil, err
 		}
 	}
@@ -328,8 +435,6 @@ func ApplySchemaChangesOverExisting(
 // sanityCheckCaveatChanges ensures that a caveat definition being written does not break
 // the types of the parameters that may already exist on relationships.
 func sanityCheckCaveatChanges(
-	_ context.Context,
-	_ datalayer.ReadWriteTransaction,
 	caveatTypeSet *caveattypes.TypeSet,
 	caveatDef *core.CaveatDefinition,
 	existingDefs map[string]*core.CaveatDefinition,
@@ -364,8 +469,8 @@ func sanityCheckCaveatChanges(
 
 // ensureNoRelationshipsExistWithResourceType ensures that no relationships exist within the namespace with the given name as a resource type.
 // NOTE: this does *not* check for use of the namespace as a subject type, as that should be handled by the caller.
-func ensureNoRelationshipsExistWithResourceType(ctx context.Context, rwt datalayer.ReadWriteTransaction, namespaceName string) error {
-	qy, qyErr := rwt.QueryRelationships(
+func ensureNoRelationshipsExistWithResourceType(ctx context.Context, querier RelationshipQuerier, namespaceName string) error {
+	qy, qyErr := querier.QueryRelationships(
 		ctx,
 		datastore.RelationshipsFilter{OptionalResourceType: namespaceName},
 		options.WithLimit(options.LimitOne),
@@ -390,7 +495,7 @@ func ensureNoRelationshipsExistWithResourceType(ctx context.Context, rwt datalay
 // and relations.
 func sanityCheckNamespaceChanges(
 	ctx context.Context,
-	rwt datalayer.ReadWriteTransaction,
+	querier RelationshipQuerier,
 	nsdef *core.NamespaceDefinition,
 	existingDefs map[string]*core.NamespaceDefinition,
 ) (*nsdiff.Diff, error) {
@@ -428,7 +533,7 @@ func sanityCheckNamespaceChanges(
 				})
 			}
 
-			qy, qyErr := rwt.QueryRelationships(
+			qy, qyErr := querier.QueryRelationships(
 				ctx,
 				datastore.RelationshipsFilter{
 					OptionalResourceType:      nsdef.Name,
@@ -461,7 +566,7 @@ func sanityCheckNamespaceChanges(
 				return delta.RelationName != tuple.Ellipsis && delta.RelationName != ""
 			}, "relation name should not be empty or ellipsis when checking for reverse relationships")
 
-			qy, qyErr = rwt.ReverseQueryRelationships(
+			qy, qyErr = querier.ReverseQueryRelationships(
 				ctx,
 				datastore.SubjectsFilter{
 					SubjectType:    nsdef.Name,
@@ -505,7 +610,7 @@ func sanityCheckNamespaceChanges(
 				expirationOption = datastore.ExpirationFilterOptionHasExpiration
 			}
 
-			qyr, qyrErr := rwt.QueryRelationships(
+			qyr, qyrErr := querier.QueryRelationships(
 				ctx,
 				datastore.RelationshipsFilter{
 					OptionalResourceType:     nsdef.Name,

@@ -589,6 +589,39 @@ func TestRelationshipsFilterTest(t *testing.T) {
 			relationshipString: "foo:something#viewer@user:fred",
 			expected:           true,
 		},
+		{
+			name: "subject filter match with caveat filter mismatch",
+			filter: RelationshipsFilter{
+				OptionalSubjectsSelectors: []SubjectsSelector{
+					{OptionalSubjectType: "user"},
+				},
+				OptionalCaveatNameFilter: WithCaveatName("bar"),
+			},
+			relationshipString: "foo:something#viewer@user:fred[baz]",
+			expected:           false,
+		},
+		{
+			name: "subject filter match with expiration filter mismatch",
+			filter: RelationshipsFilter{
+				OptionalSubjectsSelectors: []SubjectsSelector{
+					{OptionalSubjectType: "user"},
+				},
+				OptionalExpirationOption: ExpirationFilterOptionHasExpiration,
+			},
+			relationshipString: "foo:something#viewer@user:fred",
+			expected:           false,
+		},
+		{
+			name: "subject filter match with caveat filter match",
+			filter: RelationshipsFilter{
+				OptionalSubjectsSelectors: []SubjectsSelector{
+					{OptionalSubjectType: "user"},
+				},
+				OptionalCaveatNameFilter: WithCaveatName("bar"),
+			},
+			relationshipString: "foo:something#viewer@user:fred[bar]",
+			expected:           true,
+		},
 	}
 
 	for _, tc := range tcs {

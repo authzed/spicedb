@@ -212,12 +212,9 @@ func (rf RelationshipsFilter) Test(relationship tuple.Relationship) bool {
 		return false
 	}
 
-	if len(rf.OptionalSubjectsSelectors) > 0 {
-		for _, selector := range rf.OptionalSubjectsSelectors {
-			if selector.Test(relationship.Subject) {
-				return true
-			}
-		}
+	if len(rf.OptionalSubjectsSelectors) > 0 && !slices.ContainsFunc(rf.OptionalSubjectsSelectors, func(selector SubjectsSelector) bool {
+		return selector.Test(relationship.Subject)
+	}) {
 		return false
 	}
 
@@ -976,6 +973,32 @@ type UnwrappableDatastore interface {
 type EngineIdentifiable interface {
 	// EngineName returns the datastore engine name, e.g. "postgres".
 	EngineName() string
+}
+
+// RelationshipQuerier queries relationships.
+type RelationshipQuerier interface {
+	// QueryRelationships reads relationships, starting from the resource side.
+	QueryRelationships(ctx context.Context, filter RelationshipsFilter, opts ...options.QueryOptionsOption) (RelationshipIterator, error)
+
+	// ReverseQueryRelationships reads relationships, starting from the subject.
+	ReverseQueryRelationships(ctx context.Context, subjectsFilter SubjectsFilter, opts ...options.ReverseQueryOptionsOption) (RelationshipIterator, error)
+}
+
+// CreatedRelationshipsReader is optionally implemented by datastores that can query the
+// relationships created after a revision. Use UnwrapAs to find it behind wrapping proxies.
+//
+// A schema write uses it to check, under the schema lock, only the relationships created since
+// it checked all relationships at a snapshot. That is correct only if, once a transaction holds
+// the schema hash lock exclusively, no relationship write carrying the old schema hash can commit
+// until that transaction does. Implement it only for datastores whose schema hash lock blocks
+// such writes (Postgres and MySQL), not for those that rely on serializable conflict detection
+// instead (CRDB).
+type CreatedRelationshipsReader interface {
+	// RelationshipsCreatedAfter returns a querier over the live, unexpired relationships created
+	// by transactions that the given revision does not include. Each query reads the primary as
+	// of the query, not at a snapshot, so it sees writes that the snapshot of a transaction open
+	// during the query does not.
+	RelationshipsCreatedAfter(revision Revision) (RelationshipQuerier, error)
 }
 
 // UnwrapAs recursively attempts to unwrap the datastore into the specified type
