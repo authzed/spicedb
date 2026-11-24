@@ -205,7 +205,8 @@ func TestReadAheadRelationshipsStopsReadingWhenConsumerStops(t *testing.T) {
 		}, nil
 	}
 
-	for range readAheadRelationships(nil, 10_000, query) {
+	for _, err := range readAheadRelationships(nil, 10_000, query) {
+		require.NoError(t, err)
 		break
 	}
 	close(release)

@@ -111,7 +111,8 @@ func (p *PgBackend) Close() error {
 	return server.Close()
 }
 
-func (p *PgBackend) handler(ctx context.Context, query string) (wire.PreparedStatements, error) {
+func (p *PgBackend) handler(ctx context.Context, wireQuery wire.Query) (wire.PreparedStatements, error) {
+	query := wireQuery.Query
 	parsed, err := pgquery.Parse(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse query: %w", err)
