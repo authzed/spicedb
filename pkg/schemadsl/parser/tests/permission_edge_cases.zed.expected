@@ -135,22 +135,27 @@ NodeTypeFile
                   input-source = permission edge cases test
                   start-rune = 340
               right-expr =>
-                NodeTypeExclusionExpression
-                  end-rune = 364
+                NodeTypeParenthesizedExpression
+                  end-rune = 365
                   input-source = permission edge cases test
-                  start-rune = 350
-                  left-expr =>
-                    NodeTypeIdentifier
-                      end-rune = 355
-                      identifier-value = viewer
+                  start-rune = 349
+                  inner-expr =>
+                    NodeTypeExclusionExpression
+                      end-rune = 364
                       input-source = permission edge cases test
                       start-rune = 350
-                  right-expr =>
-                    NodeTypeIdentifier
-                      end-rune = 364
-                      identifier-value = viewer
-                      input-source = permission edge cases test
-                      start-rune = 359
+                      left-expr =>
+                        NodeTypeIdentifier
+                          end-rune = 355
+                          identifier-value = viewer
+                          input-source = permission edge cases test
+                          start-rune = 350
+                      right-expr =>
+                        NodeTypeIdentifier
+                          end-rune = 364
+                          identifier-value = viewer
+                          input-source = permission edge cases test
+                          start-rune = 359
           type-annotations =>
             NodeTypeTypeAnnotation
               end-rune = 336

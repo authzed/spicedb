@@ -21,6 +21,7 @@ import (
 var allChecks = checks{
 	relationChecks: []relationCheck{
 		lintRelationReferencesParentType,
+		lintMixedOperatorsWithoutParentheses,
 	},
 	computedUsersetChecks: []computedUsersetCheck{
 		lintPermissionReferencingItself,
