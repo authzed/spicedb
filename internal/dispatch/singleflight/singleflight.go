@@ -15,6 +15,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	log "github.com/authzed/spicedb/internal/logging"
+	"github.com/authzed/spicedb/pkg/genutil/scopedflight"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
 
@@ -39,9 +40,9 @@ type Dispatcher struct {
 	delegate   dispatch.Dispatcher
 	keyHandler keys.Handler
 
-	checkGroup     singleflight.Group[string, *v1.DispatchCheckResponse]
+	checkGroup     scopedflight.Group[string, *v1.DispatchCheckResponse]
 	expandGroup    singleflight.Group[string, *v1.DispatchExpandResponse]
-	planCheckGroup singleflight.Group[string, []*v1.DispatchQueryPlanResponse]
+	planCheckGroup scopedflight.Group[string, []*v1.DispatchQueryPlanResponse]
 }
 
 func (d *Dispatcher) DispatchCheck(ctx context.Context, req *v1.DispatchCheckRequest) (*v1.DispatchCheckResponse, error) {
