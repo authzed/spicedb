@@ -42,7 +42,8 @@ func TestIteratorHoldsConnectionUntilIterationEnds(t *testing.T) {
 	// Breaking out early must also release.
 	it, err = reader.QueryRelationships(t.Context(), datastore.RelationshipsFilter{OptionalResourceType: "document"}, options.WithQueryShape(queryshape.FindResourceOfType))
 	require.NoError(t, err)
-	for range it {
+	for _, err := range it {
+		require.NoError(t, err)
 		break
 	}
 	require.Equal(t, int64(0), pool.InUse())

@@ -155,7 +155,7 @@ func executeRepair(cfg *dscmd.Config, args []string) error {
 		return nil
 	}
 
-	operationName := args[0]
+	operationName := args[0] //nolint:gosec // G602 false positive: len(args) == 0 returns above
 
 	log.Ctx(ctx).Info().Msg("Running repair...")
 	err = repairable.Repair(ctx, operationName, true)
