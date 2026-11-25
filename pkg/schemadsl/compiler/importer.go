@@ -3,6 +3,7 @@ package compiler
 import (
 	"fmt"
 	"io/fs"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -32,10 +33,16 @@ func importFile(fsys fs.FS, filePath string, toplevel *dslNode, mapper input.Pos
 }
 
 // Take a filepath and ensure that it's local to the current context.
-func validateFilepath(path string, toplevel *dslNode, mapper input.PositionMapper) error {
+func validateFilepath(importPath string, toplevel *dslNode, mapper input.PositionMapper) error {
 	nodeSource, _ := toplevel.GetString(dslshape.NodePredicateSource)
-	if strings.Contains(path, "..") {
-		errMsg := fmt.Errorf("import path %q contains '..'; paths must stay within their directory", path)
+	if strings.Contains(importPath, "..") {
+		errMsg := fmt.Errorf("import path %q contains '..'; paths must stay within their directory", importPath)
+		return toContextError(errMsg.Error(), nodeSource, toplevel, mapper)
+	}
+	// Import paths are resolved against an fs.FS, which requires slash-separated
+	// relative paths without backslashes on every OS.
+	if strings.Contains(importPath, "\\") {
+		errMsg := fmt.Errorf("import path %q must use forward slashes ('/')", importPath)
 		return toContextError(errMsg.Error(), nodeSource, toplevel, mapper)
 	}
 	// NOTE: This is slightly overly restrictive; it should theoretically be possible
@@ -43,8 +50,9 @@ func validateFilepath(path string, toplevel *dslNode, mapper input.PositionMappe
 	// the compiler is being invoked, rather than whether it's local to the source
 	// folder of the current context. The assumption is that that won't matter
 	// right now, and we can fix it if we need to.
-	if !filepath.IsLocal(path) {
-		errMsg := fmt.Errorf("import path %q is outside the directory where the root schema is defined", path)
+	cleaned := path.Clean(importPath)
+	if !fs.ValidPath(cleaned) || !filepath.IsLocal(importPath) {
+		errMsg := fmt.Errorf("import path %q is outside the directory where the root schema is defined", importPath)
 		return toContextError(errMsg.Error(), nodeSource, toplevel, mapper)
 	}
 	return nil
