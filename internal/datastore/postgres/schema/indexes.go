@@ -104,6 +104,14 @@ var IndexGCDeadRelationships = common.IndexDefinition{
 	PreferredSortOrder: options.Unsorted,
 }
 
+// IndexRelationshipByResourceIDPrefix is an index that supports ReadRelationships queries
+// which filter on optional_resource_id_prefix.
+var IndexRelationshipByResourceIDPrefix = common.IndexDefinition{
+	Name:               `ix_relation_tuple_by_resource_id_prefix`,
+	ColumnsSQL:         `relation_tuple (namespace, object_id varchar_pattern_ops)`,
+	PreferredSortOrder: options.Unsorted,
+}
+
 var pgIndexes = []common.IndexDefinition{
 	UniqueLivingRelationshipIndex,
 	IndexRelationshipBySubject,
@@ -113,6 +121,7 @@ var pgIndexes = []common.IndexDefinition{
 	IndexExpiringRelationships,
 	IndexSortedRelationTupleTransaction,
 	IndexGCDeadRelationships,
+	IndexRelationshipByResourceIDPrefix,
 }
 
 var NoIndexingHint common.IndexingHint = nil
