@@ -49,7 +49,8 @@ func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
 		)
 		require.NoError(t, err)
 
-		for range iter {
+		for _, err := range iter {
+			require.NoError(t, err)
 			foundRels = true
 			break
 		}
@@ -77,7 +78,8 @@ func DeleteAllDataTest(t *testing.T, tester DatastoreTester) {
 		)
 		require.NoError(t, err)
 
-		for range iter {
+		for _, err := range iter {
+			require.NoError(t, err)
 			require.Fail(t, "relationships still exist")
 		}
 	}

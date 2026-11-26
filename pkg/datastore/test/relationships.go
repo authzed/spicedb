@@ -2264,7 +2264,8 @@ func MultipleReadsInRWTTest(t *testing.T, tester DatastoreTester) {
 		}, options.WithQueryShape(queryshape.FindResourceOfType))
 		require.NoError(err)
 
-		for range it {
+		for _, err := range it {
+			require.NoError(err)
 			break
 		}
 
@@ -2273,7 +2274,8 @@ func MultipleReadsInRWTTest(t *testing.T, tester DatastoreTester) {
 		}, options.WithQueryShape(queryshape.FindResourceOfType))
 		require.NoError(err)
 
-		for range it {
+		for _, err := range it {
+			require.NoError(err)
 			break
 		}
 
@@ -2346,7 +2348,8 @@ func ConcurrentWriteSerializationTest(t *testing.T, tester DatastoreTester) {
 				return err
 			}
 
-			for range iter {
+			for _, err := range iter {
+				assert.NoError(t, err) //nolint:testifylint  // we're in a goroutine
 				break
 			}
 

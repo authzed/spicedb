@@ -46,7 +46,7 @@ func TestRemoteReporterFollowsCARotation(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() { done <- reporter(t.Context()) }()
-	t.Cleanup(func() { <-done })
+	t.Cleanup(func() { require.NoError(t, <-done) })
 
 	require.Eventually(t, func() bool { return sink.reports() > 0 }, 15*time.Second, 100*time.Millisecond,
 		"the reporter should reach the endpoint with the authority it started with")

@@ -2230,7 +2230,8 @@ func ExceedInsertQuerySizeTest(t *testing.T, ds datastore.Datastore) {
 	})
 	require.NoError(err)
 	count := 0
-	for range iter {
+	for _, err := range iter {
+		require.NoError(err)
 		count++
 	}
 	require.Equal(0, count, "expected to have 0 relationships, but found %d", count)
