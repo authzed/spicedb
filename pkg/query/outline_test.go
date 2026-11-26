@@ -40,8 +40,8 @@ func TestIndependentPermissionBranchesKeepLogicalIdentity(t *testing.T) {
 		require.NoError(t, err)
 		received, _ := roundTrip(t, compiled, nil)
 
-		for _, copy := range []Iterator{compiled.Clone(), replaced, received} {
-			outline, err := Decompile(copy)
+		for _, iteratorCopy := range []Iterator{compiled.Clone(), replaced, received} {
+			outline, err := Decompile(iteratorCopy)
 			require.NoError(t, err)
 			require.True(t, outline.IndependentCheckBranches)
 			require.True(t, serial.Equals(outline))

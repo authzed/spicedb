@@ -49,7 +49,8 @@ func TestEstimatedConcurrencyLimit_OptionalLimitZero(t *testing.T) {
 	iterator := estimatedConcurrencyLimit(crr, refs, item, fn)
 
 	// Consume the iterator to trigger the function call
-	for range iterator {
+	for _, err := range iterator {
+		require.NoError(t, err)
 		break
 	}
 
@@ -121,7 +122,8 @@ func TestEstimatedConcurrencyLimit_NoDigestAvailable(t *testing.T) {
 	iterator := estimatedConcurrencyLimit(crr, refs, item, fn)
 
 	// Consume the iterator
-	for range iterator {
+	for _, err := range iterator {
+		require.NoError(t, err)
 		break
 	}
 
@@ -163,7 +165,8 @@ func TestEstimatedConcurrencyLimit_CDFBelowThreshold(t *testing.T) {
 	iterator := estimatedConcurrencyLimit(crr, refs, item, fn)
 
 	// Consume the iterator
-	for range iterator {
+	for _, err := range iterator {
+		require.NoError(t, err)
 		break
 	}
 
@@ -205,7 +208,8 @@ func TestEstimatedConcurrencyLimit_CDFAboveThreshold(t *testing.T) {
 	iterator := estimatedConcurrencyLimit(crr, refs, item, fn)
 
 	// Consume the iterator
-	for range iterator {
+	for _, err := range iterator {
+		require.NoError(t, err)
 		break
 	}
 

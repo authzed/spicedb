@@ -253,8 +253,9 @@ func TestRemoteReporterWithServer(t *testing.T) {
 		t.Fatal("timeout waiting for request")
 	}
 
-	cancel() // Stop the reporter
-	<-done   // Wait for reporter to finish
+	cancel()     // Stop the reporter
+	err = <-done // Wait for reporter to finish
+	require.NoError(t, err)
 
 	require.Positive(t, requestCount, "Expected at least one request to be made")
 }
@@ -298,8 +299,9 @@ func TestRemoteReporterErrorHandling(t *testing.T) {
 		t.Fatal("timeout waiting for first request")
 	}
 
-	cancel() // Stop the reporter
-	<-done   // Wait for reporter to finish
+	cancel()     // Stop the reporter
+	err = <-done // Wait for reporter to finish
+	require.NoError(t, err)
 
 	require.GreaterOrEqual(t, failureCount, 1, "Expected at least 1 request")
 }
