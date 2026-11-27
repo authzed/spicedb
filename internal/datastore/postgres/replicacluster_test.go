@@ -206,7 +206,7 @@ func (c *pgReplicaCluster) waitForReplicaCaughtUp(ctx context.Context, t testing
 	defer primaryConn.Close(ctx)
 
 	var target string
-	require.NoError(t, primaryConn.QueryRow(ctx, "SELECT pg_current_wal_lsn()::text").Scan(&target))
+	require.NoError(t, primaryConn.QueryRow(ctx, "SELECT pg_current_wal_insert_lsn()::text").Scan(&target))
 
 	require.Eventually(t, func() bool {
 		conn, err := pgx.Connect(ctx, c.replicaURI)

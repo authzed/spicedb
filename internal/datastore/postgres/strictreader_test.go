@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
@@ -127,4 +128,28 @@ func runQueries(ctx context.Context, reader strictReaderQueryFuncs) []error {
 		reader.QueryFunc(ctx, nil, "SELECT 1"),
 		reader.QueryRowFunc(ctx, nil, "SELECT 1"),
 	}
+}
+
+func TestCommittedFrontier(t *testing.T) {
+	for _, tc := range []struct {
+		snapshot string
+		expected uint64
+	}{
+		{"100:100:", 100},
+		{"100:105:100,102", 105},
+		{"100:105:100,103,104", 103},
+		{"100:105:100,101,102,103,104", 100},
+	} {
+		t.Run(tc.snapshot, func(t *testing.T) {
+			var s pgSnapshot
+			require.NoError(t, s.ScanText(pgtype.Text{String: tc.snapshot, Valid: true}))
+			require.Equal(t, tc.expected, s.committedFrontier())
+		})
+	}
+
+	// A write's revision marks its own xid committed, so the replica must have
+	// completed everything up to and including the write.
+	var s pgSnapshot
+	require.NoError(t, s.ScanText(pgtype.Text{String: "736:736:", Valid: true}))
+	require.Equal(t, uint64(737), s.markComplete(736).committedFrontier())
 }
