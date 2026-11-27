@@ -40,14 +40,18 @@ const (
         LIMIT 1
 	);`
 
-	// schemaHashForSelectedXID looks up the schema hash visible at `selected.xid`.
-	// When `selected.xid` is NULL, it falls back to the currently-live row (deleted_xid = max_xid8).
+	// schemaHashForSelectedSnapshot looks up the schema hash visible at `selected.snapshot`
+	// with `selected.xid` treated as complete (matching OptimizedRevision's snapshot.markComplete
+	// and ReadStoredSchema's aliveFilter). When `selected.xid` is NULL, visibility is evaluated
+	// against `selected.snapshot` directly.
 	// Returns an empty bytea when no row matches.
-	schemaHashForSelectedXID = `
+	schemaHashForSelectedSnapshot = `
 	COALESCE(
 		(SELECT hash FROM schema_revision
-		 WHERE (selected.xid IS NOT NULL AND created_xid <= selected.xid AND deleted_xid > selected.xid)
-		    OR (selected.xid IS NULL AND deleted_xid = '9223372036854775807'::xid8)
+		 WHERE name = 'current'
+		   AND (pg_visible_in_snapshot(created_xid, selected.snapshot) OR (selected.xid IS NOT NULL AND created_xid = selected.xid))
+		   AND NOT pg_visible_in_snapshot(deleted_xid, selected.snapshot)
+		   AND (selected.xid IS NULL OR deleted_xid <> selected.xid)
 		 ORDER BY created_xid DESC LIMIT 1),
 		''::bytea
 	)`
@@ -58,7 +62,7 @@ const (
 	// it just picks the latest transaction. It will also return the amount of
 	// nanoseconds until the next optimized revision would be selected server-side,
 	// for use with caching. It also returns the schema hash visible at the selected
-	// xid so the DataLayer's stored-schema cache can be consulted without a second
+	// snapshot so the DataLayer's stored-schema cache can be consulted without a second
 	// round-trip.
 	//
 	//   %[1] Name of xid column
@@ -68,13 +72,24 @@ const (
 	//   %[5] Name of snapshot column
 	//   %[6] Follower read delay (in nanoseconds)
 	querySelectRevision = `
-	WITH selected AS (SELECT (
-		(SELECT %[1]s FROM %[2]s WHERE %[3]s >= TO_TIMESTAMP(FLOOR((EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 - %[6]d)/ %[4]d) * %[4]d / 1000000000) AT TIME ZONE 'utc' ORDER BY %[3]s ASC LIMIT 1)
-	) as xid)
-	SELECT selected.xid,
-	COALESCE((SELECT %[5]s FROM %[2]s WHERE %[1]s = selected.xid), (SELECT pg_current_snapshot())),
-	%[4]d - CAST(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 as bigint) %% %[4]d,
-	` + schemaHashForSelectedXID + `
+	WITH selected AS MATERIALIZED (
+		SELECT
+			tx.xid AS xid,
+			COALESCE(tx.snapshot, pg_current_snapshot()) AS snapshot
+		FROM (VALUES (1)) AS _row
+		LEFT JOIN (
+			SELECT %[1]s AS xid, %[5]s AS snapshot
+			FROM %[2]s
+			WHERE %[3]s >= TO_TIMESTAMP(FLOOR((EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 - %[6]d)/ %[4]d) * %[4]d / 1000000000) AT TIME ZONE 'utc'
+			ORDER BY %[3]s ASC
+			LIMIT 1
+		) AS tx ON TRUE
+	)
+	SELECT
+		selected.xid,
+		selected.snapshot,
+		%[4]d - CAST(EXTRACT(EPOCH FROM NOW() AT TIME ZONE 'utc') * 1000000000 as bigint) %% %[4]d,
+		` + schemaHashForSelectedSnapshot + `
 	FROM selected;`
 
 	// queryValidTransaction will return a single row with three values:
@@ -115,13 +130,13 @@ const (
 	ORDER BY %[3]s ASC
 	LIMIT 1;`
 	// queryCurrentSnapshotWithHash returns the current snapshot alongside the schema hash
-	// visible at the current xid. Uses pg_current_xact_id_if_assigned() so a read-only
-	// HeadRevision call does not allocate a fresh xid.
+	// visible at that snapshot. Because HeadRevision returns the snapshot directly without
+	// markComplete, selected.xid is NULL and no transaction ID is allocated.
 	queryCurrentSnapshotWithHash = `
-	WITH selected AS (
-		SELECT pg_current_xact_id_if_assigned() as xid, pg_current_snapshot() as snapshot
+	WITH selected AS MATERIALIZED (
+		SELECT NULL::xid8 AS xid, pg_current_snapshot() AS snapshot
 	)
-	SELECT selected.snapshot, ` + schemaHashForSelectedXID + `
+	SELECT selected.snapshot, ` + schemaHashForSelectedSnapshot + `
 	FROM selected;`
 
 	queryCurrentTransactionID = `SELECT pg_current_xact_id()::text::integer;`
@@ -138,7 +153,9 @@ func (pgd *pgDatastore) OptimizedRevision(ctx context.Context) (datastore.Revisi
 		return datastore.RevisionWithSchemaHashAndValidity{}, fmt.Errorf(errRevision, err)
 	}
 
-	snapshot = snapshot.markComplete(revision.Uint64)
+	if revision.Valid {
+		snapshot = snapshot.markComplete(revision.Uint64)
+	}
 
 	return datastore.RevisionWithSchemaHashAndValidity{
 		Revision:   postgresRevision{snapshot: snapshot, optionalTxID: revision},

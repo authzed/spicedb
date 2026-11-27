@@ -32,7 +32,14 @@ type noopSchemaCache struct{}
 func (noopSchemaCache) GetOrLoad(ctx context.Context, _ datastore.Revision, _ SchemaHash,
 	loader func(ctx context.Context) (*datastore.ReadOnlyStoredSchema, error),
 ) (*datastore.ReadOnlyStoredSchema, error) {
-	return loader(ctx)
+	schema, err := loader(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if schema == nil {
+		return nil, errNilLoadedSchema
+	}
+	return schema, nil
 }
 
 func (noopSchemaCache) Set(_ SchemaHash, _ *datastore.ReadOnlyStoredSchema) error {
