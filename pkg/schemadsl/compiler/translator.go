@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"path/filepath"
+	"path"
 	"strings"
 
 	"buf.build/go/protovalidate"
@@ -880,9 +880,9 @@ func (itctx *importResolutionContext) translateImports(root *dslNode, locallyVis
 			if itctx.sourceFS == nil {
 				return errors.New("import statement found but no source filesystem was configured for compilation")
 			}
-			filePath := filepath.Join(itctx.sourcePrefix, importPath)
+			filePath := path.Join(itctx.sourcePrefix, importPath)
 
-			newSourcePrefix := filepath.Dir(filePath)
+			newSourcePrefix := path.Dir(filePath)
 
 			currentLocallyVisitedFiles := locallyVisitedFiles.Copy()
 

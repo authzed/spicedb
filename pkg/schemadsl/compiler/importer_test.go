@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -95,7 +94,7 @@ func TestImporter(t *testing.T) {
 			}
 		})
 		t.Run("fs/"+test.name, func(t *testing.T) {
-			fsys, err := fs.Sub(testFS, filepath.Join("importer-test", test.folder))
+			fsys, err := fs.Sub(testFS, path.Join("importer-test", test.folder))
 			require.NoError(t, err)
 
 			inputSchema := test.input()
@@ -199,4 +198,47 @@ func TestMissingImportErrorContainsSourceFile(t *testing.T) {
 
 	t.Log(contextErr.Error())
 	require.Equal(t, "parse error in `root.zed`, line 5, column 1: failed to read import \"doesnotexist.zed\": open doesnotexist.zed: no such file or directory", contextErr.Error())
+}
+
+type strictValidPathFS struct {
+	inner    fs.FS
+	readKeys []string
+}
+
+func (s *strictValidPathFS) Open(name string) (fs.File, error) {
+	if !fs.ValidPath(name) {
+		return nil, &fs.PathError{Op: "open", Path: name, Err: fs.ErrInvalid}
+	}
+	s.readKeys = append(s.readKeys, name)
+	return s.inner.Open(name)
+}
+
+func TestNestedSubdirectoryImportsUseSlashSeparatedFSPaths(t *testing.T) {
+	fsys, err := fs.Sub(testFS, "importer-test/nested-local-with-hop")
+	require.NoError(t, err)
+
+	strictFS := &strictValidPathFS{inner: fsys}
+	schema := "use import\nimport \"./transitive/transitive.zed\"\ndefinition root {}\n"
+
+	compiled, err := compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("nested.zed"),
+		SchemaString: schema,
+	}, compiler.AllowUnprefixedObjectType(), compiler.SourceFS(strictFS))
+	require.NoError(t, err)
+	require.NotNil(t, compiled)
+	require.Equal(t, []string{
+		"transitive/transitive.zed",
+		"transitive/user/user.zed",
+	}, strictFS.readKeys)
+}
+
+func TestBackslashImportPathCausesError(t *testing.T) {
+	fsys, err := fs.Sub(testFS, "importer-test/nested-local")
+	require.NoError(t, err)
+
+	_, err = compiler.Compile(compiler.InputSchema{
+		Source:       input.Source("nested.zed"),
+		SchemaString: "use import\nimport \"user\\\\user.zed\"\n",
+	}, compiler.AllowUnprefixedObjectType(), compiler.SourceFS(fsys))
+	require.ErrorContains(t, err, "must use forward slashes")
 }
