@@ -11,7 +11,7 @@ require (
 	github.com/KimMachineGun/automemlimit v0.7.5
 	github.com/Masterminds/semver v1.5.0
 	github.com/Masterminds/squirrel v1.5.4
-	github.com/authzed/authzed-go v1.11.1-0.20261120130125-380614b108c9
+	github.com/authzed/authzed-go v1.11.1-0.20261127115002-a63d5fb80238
 	github.com/authzed/cel-go v0.32.0
 	github.com/authzed/consistent v0.4.0
 	github.com/authzed/ctxkey v0.1.0

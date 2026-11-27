@@ -5,6 +5,7 @@ import (
 	dispatch "github.com/authzed/spicedb/internal/dispatch"
 	memoryprotection "github.com/authzed/spicedb/internal/middleware/memoryprotection"
 	consistency "github.com/authzed/spicedb/pkg/middleware/consistency"
+	dispatchstrategy "github.com/authzed/spicedb/pkg/middleware/dispatchstrategy"
 	defaults "github.com/creasty/defaults"
 	auth "github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/auth"
 	zerolog "github.com/rs/zerolog"
@@ -44,6 +45,7 @@ func (m *MiddlewareOption) ToOption() MiddlewareOptionOption {
 		to.MiddlewareServiceLabel = m.MiddlewareServiceLabel
 		to.MismatchingZedTokenOption = m.MismatchingZedTokenOption
 		to.MemoryUsageProvider = m.MemoryUsageProvider
+		to.DispatchStrategyOverrides = m.DispatchStrategyOverrides
 	}
 }
 
@@ -173,5 +175,12 @@ func WithMismatchingZedTokenOption(mismatchingZedTokenOption consistency.Mismatc
 func WithMemoryUsageProvider(memoryUsageProvider memoryprotection.MemoryUsageProvider) MiddlewareOptionOption {
 	return func(m *MiddlewareOption) {
 		m.MemoryUsageProvider = memoryUsageProvider
+	}
+}
+
+// WithDispatchStrategyOverrides returns an option that can set DispatchStrategyOverrides on a MiddlewareOption
+func WithDispatchStrategyOverrides(dispatchStrategyOverrides dispatchstrategy.Validator) MiddlewareOptionOption {
+	return func(m *MiddlewareOption) {
+		m.DispatchStrategyOverrides = dispatchStrategyOverrides
 	}
 }

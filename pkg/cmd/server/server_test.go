@@ -18,10 +18,12 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/authzed/authzed-go/pkg/requestmeta"
 	v1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
@@ -640,7 +642,7 @@ func TestModifyUnaryMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.NewNoopMemoryUsageProvider(), nil, nil}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.NewNoopMemoryUsageProvider(), nil, nil, nil}
 	opt = opt.WithDatastore(nil)
 
 	defaultMw, err := DefaultUnaryMiddleware(opt)
@@ -668,7 +670,7 @@ func TestModifyStreamingMiddleware(t *testing.T) {
 		},
 	}}
 
-	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.NewNoopMemoryUsageProvider(), nil, nil}
+	opt := MiddlewareOption{logging.Logger, nil, false, nil, false, false, false, "testing", consistency.TreatMismatchingTokensAsFullConsistency, memoryprotection.NewNoopMemoryUsageProvider(), nil, nil, nil}
 	opt = opt.WithDatastore(nil)
 
 	defaultMw, err := DefaultStreamingMiddleware(opt)
@@ -925,4 +927,147 @@ func TestShutdownReportsNotServingBeforeClosingListeners(t *testing.T) {
 
 	require.NoError(t, <-runDone)
 	require.GreaterOrEqual(t, time.Since(stoppedAt), shutdownDrainDelay, "listeners closed before the drain delay elapsed")
+}
+
+func TestDispatchStrategyOverridesConfig(t *testing.T) {
+	t.Parallel()
+
+	secondaries := map[string]string{"tiger": "localhost:2"}
+	for _, tc := range []struct {
+		name          string
+		config        *Config
+		expectEnabled bool
+		expectedError string
+	}{
+		{
+			name:   "disabled",
+			config: &Config{DispatchUpstreamAddr: "localhost:1", DispatchSecondaryUpstreamAddrs: secondaries},
+		},
+		{
+			name:          "enabled",
+			config:        &Config{DispatchSecondaryAllowStrategyOverride: true, DispatchUpstreamAddr: "localhost:1", DispatchSecondaryUpstreamAddrs: secondaries},
+			expectEnabled: true,
+		},
+		{
+			name:          "without a dispatch upstream",
+			config:        &Config{DispatchSecondaryAllowStrategyOverride: true, DispatchSecondaryUpstreamAddrs: secondaries},
+			expectedError: "require a dispatch upstream and secondary dispatch upstreams",
+		},
+		{
+			name:          "without secondaries",
+			config:        &Config{DispatchSecondaryAllowStrategyOverride: true, DispatchUpstreamAddr: "localhost:1"},
+			expectedError: "require a dispatch upstream and secondary dispatch upstreams",
+		},
+		{
+			name:          "with a custom dispatcher",
+			config:        &Config{DispatchSecondaryAllowStrategyOverride: true, DispatchUpstreamAddr: "localhost:1", DispatchSecondaryUpstreamAddrs: secondaries, Dispatcher: dispatchmocks.NewMockDispatcher(gomock.NewController(t))},
+			expectedError: "not supported with a custom dispatcher",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			overrides, err := tc.config.dispatchStrategyOverrides()
+			if tc.expectedError != "" {
+				require.ErrorContains(t, err, tc.expectedError)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.expectEnabled, overrides != nil)
+		})
+	}
+}
+
+func TestDispatchStrategyOverrideHeader(t *testing.T) {
+	// main registers the dispatch hashring balancer; the dispatcher's client needs it.
+	balancer.Register(ConsistentHashringBuilder)
+
+	for _, tc := range []struct {
+		name          string
+		allow         bool
+		override      string
+		call          func(context.Context, *grpc.ClientConn) error
+		expectedError string
+	}{
+		{
+			name:          "rejected when overrides are disabled",
+			override:      "hedged(['tiger'])",
+			call:          checkPermission,
+			expectedError: "dispatch strategy overrides are not enabled on this server",
+		},
+		{
+			name:          "invalid override",
+			allow:         true,
+			override:      "hedged(['unknown'])",
+			call:          checkPermission,
+			expectedError: "unknown secondary dispatcher `unknown`",
+		},
+		{
+			name:          "override referencing the request",
+			allow:         true,
+			override:      "request.resource_relation.namespace == 'doc' ? ['tiger'] : []",
+			call:          checkPermission,
+			expectedError: "undeclared reference to 'request'",
+		},
+		{
+			name:     "method that does not dispatch",
+			allow:    true,
+			override: "hedged(['tiger'])",
+			call: func(ctx context.Context, conn *grpc.ClientConn) error {
+				_, err := v1.NewSchemaServiceClient(conn).ReadSchema(ctx, &v1.ReadSchemaRequest{})
+				return err
+			},
+			expectedError: "not supported by /authzed.api.v1.SchemaService/ReadSchema",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+
+			ds, err := dsfortesting.NewMemDBDatastoreForTesting(t, 0, 1*time.Second, 10*time.Second)
+			require.NoError(t, err)
+
+			opts := []ConfigOption{
+				WithDatastore(ds),
+				WithGRPCServer(util.GRPCServerConfig{Network: util.BufferedNetwork, Enabled: true}),
+				WithGRPCAuthFunc(func(ctx context.Context) (context.Context, error) { return ctx, nil }),
+				WithHTTPGateway(util.HTTPServerConfig{HTTPEnabled: false}),
+				WithMetricsAPI(util.HTTPServerConfig{HTTPEnabled: false}),
+				WithDispatchServer(util.GRPCServerConfig{Enabled: false}),
+				WithSilentlyDisableTelemetry(true),
+				WithEnableMemoryProtectionMiddleware(false),
+			}
+			if tc.allow {
+				opts = append(opts,
+					WithDispatchUpstreamAddr("localhost:1"),
+					SetDispatchSecondaryUpstreamAddrs(map[string]string{"tiger": "localhost:2"}),
+					WithDispatchSecondaryAllowStrategyOverride(true),
+				)
+			}
+
+			srv, err := NewConfigWithOptionsAndDefaults(opts...).Complete(ctx)
+			require.NoError(t, err)
+
+			conn, err := srv.NewClient()
+			require.NoError(t, err)
+			defer conn.Close()
+
+			go func() {
+				assert.NoError(t, srv.Run(ctx))
+			}()
+
+			err = tc.call(requestmeta.WithDispatchStrategy(ctx, tc.override), conn)
+			require.Equal(t, codes.InvalidArgument, status.Code(err), "error: %v", err)
+			require.ErrorContains(t, err, tc.expectedError)
+		})
+	}
+}
+
+func checkPermission(ctx context.Context, conn *grpc.ClientConn) error {
+	_, err := v1.NewPermissionsServiceClient(conn).CheckPermission(ctx, &v1.CheckPermissionRequest{
+		Resource:   &v1.ObjectReference{ObjectType: "document", ObjectId: "doc"},
+		Permission: "view",
+		Subject:    &v1.SubjectReference{Object: &v1.ObjectReference{ObjectType: "user", ObjectId: "alice"}},
+	})
+	return err
 }

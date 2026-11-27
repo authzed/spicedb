@@ -16,8 +16,10 @@ import (
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	"github.com/authzed/authzed-go/pkg/requestmeta"
 	authzedv1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
 
 	"github.com/authzed/spicedb/internal/dispatch"
@@ -271,7 +273,7 @@ func TestCursorLockedSecondaryErrorStatusIsReturned(t *testing.T) {
 	secondary := &fakeDispatchSvc{dispatchCount: fromSecondary, errorOnLR2: status.Error(codes.ResourceExhausted, "secondary overloaded")}
 	d := newStrategyTestDispatcher(t, primary, secondary, "lookupresources", "prefer_secondary(['secondary'], duration('10s'))", time.Millisecond, 5*time.Millisecond)
 
-	cursorLocked := testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("lookupresources", cursorLockedStrategyName))
+	cursorLocked := testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("lookupresources", cursorLockedStrategyName, "config"))
 
 	stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupResources2Response](t.Context())
 	err := d.DispatchLookupResources2(testLR2Request([]string{secondaryCursorPrefix + "secondary", "rest"}), stream)
@@ -279,7 +281,7 @@ func TestCursorLockedSecondaryErrorStatusIsReturned(t *testing.T) {
 	require.Equal(t, uint32(0), primary.calls.Load())
 
 	// Counted as cursor_locked, not as the expression's strategy.
-	require.InDelta(t, cursorLocked+1, testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("lookupresources", cursorLockedStrategyName)), 0)
+	require.InDelta(t, cursorLocked+1, testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("lookupresources", cursorLockedStrategyName, "config")), 0)
 }
 
 func TestRepeatedSecondaryNameDispatchesOnce(t *testing.T) {
@@ -518,8 +520,8 @@ func TestStrategyChosenPerRequest(t *testing.T) {
 	secondary := &fakeDispatchSvc{dispatchCount: fromSecondary, sleepTime: 100 * time.Millisecond}
 	d := newStrategyTestDispatcher(t, primary, secondary, "check", expr, time.Millisecond, 5*time.Millisecond)
 
-	preferSecondaryCount := testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("check", "prefer_secondary"))
-	hedgedCount := testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("check", "hedged"))
+	preferSecondaryCount := testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("check", "prefer_secondary", "config"))
+	hedgedCount := testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("check", "hedged", "config"))
 
 	// prefer_secondary: the primary waits for the secondary, which answers.
 	resp, err := d.DispatchCheck(t.Context(), testCheckRequestFor("offloaded"))
@@ -533,8 +535,8 @@ func TestStrategyChosenPerRequest(t *testing.T) {
 	require.Equal(t, fromPrimary, resp.Metadata.DispatchCount)
 	require.Equal(t, uint32(1), primary.calls.Load())
 
-	require.InDelta(t, preferSecondaryCount+1, testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("check", "prefer_secondary")), 0)
-	require.InDelta(t, hedgedCount+1, testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("check", "hedged")), 0)
+	require.InDelta(t, preferSecondaryCount+1, testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("check", "prefer_secondary", "config")), 0)
+	require.InDelta(t, hedgedCount+1, testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("check", "hedged", "config")), 0)
 }
 
 func TestInvalidStrategyArgumentFallsBackToPrimary(t *testing.T) {
@@ -703,7 +705,7 @@ func TestPreferPrimaryDispatchesToPrimaryOnly(t *testing.T) {
 			expr := "request.resource_relation.namespace == 'offloaded' ? prefer_secondary(['secondary'], duration('10s')) : prefer_primary()"
 			d := newStrategyTestDispatcher(t, primary, secondary, kind.method, expr, time.Hour, time.Hour)
 
-			hedgedRaces := testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues(kind.method, hedgedFunction))
+			hedgedRaces := testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues(kind.method, hedgedFunction, "config"))
 
 			// The test requests' namespaces are not "offloaded", so prefer_primary() applies.
 			source, err := kind.run(t, d)
@@ -712,7 +714,128 @@ func TestPreferPrimaryDispatchesToPrimaryOnly(t *testing.T) {
 			require.Equal(t, uint32(0), secondary.calls.Load())
 
 			// There was no race, so none is counted.
-			require.InDelta(t, hedgedRaces, testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues(kind.method, hedgedFunction)), 0)
+			require.InDelta(t, hedgedRaces, testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues(kind.method, hedgedFunction, "config")), 0)
 		})
 	}
+}
+
+// newOverrideTestDispatcher creates a dispatcher with one secondary, named "secondary", the given
+// configured expressions, and strategy overrides if allowOverrides is set. The primary's
+// starting delay is 1ms.
+func newOverrideTestDispatcher(t *testing.T, primary, secondary *fakeDispatchSvc, exprs map[string]string, allowOverrides bool) dispatch.Dispatcher {
+	t.Helper()
+
+	conn := connectionForDispatching(t, primary)
+	parsed := make(map[string]*DispatchExpr, len(exprs))
+	for method, expr := range exprs {
+		p, err := ParseDispatchExpression(method, expr)
+		require.NoError(t, err)
+		parsed[method] = p
+	}
+
+	var overrides *StrategyOverrides
+	if allowOverrides {
+		var err error
+		overrides, err = NewStrategyOverrides([]string{"secondary"})
+		require.NoError(t, err)
+	}
+
+	d, err := NewClusterDispatcher(v1.NewDispatchServiceClient(conn), conn, ClusterDispatcherConfig{
+		KeyHandler:             &keys.DirectKeyHandler{},
+		DispatchOverallTimeout: 30 * time.Second,
+		SecondaryDispatch: map[string]SecondaryDispatch{"secondary": {
+			Name:                       "secondary",
+			Client:                     v1.NewDispatchServiceClient(connectionForDispatching(t, secondary)),
+			MaximumPrimaryHedgingDelay: 5 * time.Millisecond,
+		}},
+		SecondaryDispatchExprs:      parsed,
+		StartingPrimaryHedgingDelay: time.Millisecond,
+		StrategyOverrides:           overrides,
+	})
+	require.NoError(t, err)
+	return d
+}
+
+// withStrategyOverride returns ctx as if it served a request carrying the strategy override expr.
+func withStrategyOverride(ctx context.Context, expr string) context.Context {
+	return metadata.NewIncomingContext(ctx, metadata.Pairs(string(requestmeta.RequestDispatchStrategyKey), expr))
+}
+
+func TestStrategyOverride(t *testing.T) {
+	// The secondary is slower than the primary: under the configured hedged expression the
+	// primary answers, under a prefer_secondary override the secondary does.
+	const preferSecondary = "prefer_secondary(['secondary'], duration('10s'))"
+	configured := map[string]string{"check": "hedged(['secondary'])", "lookupsubjects": "hedged(['secondary'])"}
+
+	t.Run("check uses the override", func(t *testing.T) {
+		primary := &fakeDispatchSvc{dispatchCount: fromPrimary}
+		secondary := &fakeDispatchSvc{dispatchCount: fromSecondary, sleepTime: 50 * time.Millisecond}
+		d := newOverrideTestDispatcher(t, primary, secondary, configured, true)
+
+		overridden := testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("check", preferSecondaryFunction, "override"))
+
+		resp, err := d.DispatchCheck(withStrategyOverride(t.Context(), preferSecondary), testCheckRequest())
+		require.NoError(t, err)
+		require.Equal(t, fromSecondary, resp.Metadata.DispatchCount)
+		require.Equal(t, uint32(0), primary.calls.Load())
+		require.InDelta(t, overridden+1, testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("check", preferSecondaryFunction, "override")), 0)
+
+		// Without the header, the configured expression applies.
+		resp, err = d.DispatchCheck(t.Context(), testCheckRequest())
+		require.NoError(t, err)
+		require.Equal(t, fromPrimary, resp.Metadata.DispatchCount)
+	})
+
+	t.Run("streaming uses the override", func(t *testing.T) {
+		primary := &fakeDispatchSvc{dispatchCount: fromPrimary}
+		secondary := &fakeDispatchSvc{dispatchCount: fromSecondary, sleepTime: 50 * time.Millisecond}
+		d := newOverrideTestDispatcher(t, primary, secondary, configured, true)
+
+		ctx := withStrategyOverride(t.Context(), preferSecondary)
+		stream := dispatch.NewCollectingDispatchStream[*v1.DispatchLookupSubjectsResponse](ctx)
+		require.NoError(t, d.DispatchLookupSubjects(testLSRequest(), stream))
+		require.Equal(t, fromSecondary, stream.Results()[0].Metadata.DispatchCount)
+		require.Equal(t, uint32(0), primary.calls.Load())
+	})
+
+	t.Run("applies without a configured expression", func(t *testing.T) {
+		primary := &fakeDispatchSvc{dispatchCount: fromPrimary}
+		secondary := &fakeDispatchSvc{dispatchCount: fromSecondary, sleepTime: 50 * time.Millisecond}
+		d := newOverrideTestDispatcher(t, primary, secondary, nil, true)
+
+		resp, err := d.DispatchCheck(withStrategyOverride(t.Context(), preferSecondary), testCheckRequest())
+		require.NoError(t, err)
+		require.Equal(t, fromSecondary, resp.Metadata.DispatchCount)
+
+		// Without the header, the primary answers alone.
+		resp, err = d.DispatchCheck(t.Context(), testCheckRequest())
+		require.NoError(t, err)
+		require.Equal(t, fromPrimary, resp.Metadata.DispatchCount)
+		require.Equal(t, uint32(1), secondary.calls.Load())
+	})
+
+	t.Run("ignored when overrides are disabled", func(t *testing.T) {
+		primary := &fakeDispatchSvc{dispatchCount: fromPrimary}
+		secondary := &fakeDispatchSvc{dispatchCount: fromSecondary, sleepTime: 50 * time.Millisecond}
+		d := newOverrideTestDispatcher(t, primary, secondary, configured, false)
+
+		resp, err := d.DispatchCheck(withStrategyOverride(t.Context(), preferSecondary), testCheckRequest())
+		require.NoError(t, err)
+		require.Equal(t, fromPrimary, resp.Metadata.DispatchCount)
+	})
+
+	t.Run("invalid override falls back to the configured expression", func(t *testing.T) {
+		primary := &fakeDispatchSvc{dispatchCount: fromPrimary}
+		secondary := &fakeDispatchSvc{dispatchCount: fromSecondary, sleepTime: 50 * time.Millisecond}
+		d := newOverrideTestDispatcher(t, primary, secondary, configured, true)
+
+		failures := testutil.ToFloat64(exprEvalErrorsCounter.WithLabelValues("check"))
+		configuredRaces := testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("check", hedgedFunction, "config"))
+
+		resp, err := d.DispatchCheck(withStrategyOverride(t.Context(), "prefer_secondary(['unknown'], duration('10s'))"), testCheckRequest())
+		require.NoError(t, err)
+		require.Equal(t, fromPrimary, resp.Metadata.DispatchCount)
+		require.InDelta(t, failures+1, testutil.ToFloat64(exprEvalErrorsCounter.WithLabelValues("check")), 0)
+		require.InDelta(t, configuredRaces+1, testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("check", hedgedFunction, "config")), 0)
+	})
 }

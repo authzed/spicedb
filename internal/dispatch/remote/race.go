@@ -104,7 +104,7 @@ func race[R any](
 	stream dispatch.Stream[R],
 	mode raceMode,
 ) error {
-	metricsFor(r.reqKey).strategy(strategy.name()).Inc()
+	metricsFor(r.reqKey).strategy(strategy.name(), r.override).Inc()
 
 	n := len(r.participants)
 	run := &raceRun[R]{

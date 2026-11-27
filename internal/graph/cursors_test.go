@@ -6,9 +6,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/metadata"
+
+	"github.com/authzed/authzed-go/pkg/requestmeta"
 
 	"github.com/authzed/spicedb/internal/dispatch"
 	"github.com/authzed/spicedb/pkg/datastore/options"
+	"github.com/authzed/spicedb/pkg/middleware/dispatchstrategy"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/tuple"
 )
@@ -427,4 +431,23 @@ func TestWithDatastoreCursorInCursorWithStartingCursor(t *testing.T) {
 	expected := []int{440, 30}
 	require.Len(t, encountered, len(expected))
 	require.Equal(t, expected, parentStream.Results())
+}
+
+func TestBranchContextKeepsRequestHeaders(t *testing.T) {
+	t.Parallel()
+
+	const override = "prefer_secondary(['tiger'], duration('50ms'))"
+	parent := metadata.NewIncomingContext(t.Context(), metadata.Pairs(
+		string(requestmeta.RequestIDKey), "abc",
+		string(requestmeta.RequestDispatchStrategyKey), override,
+	))
+
+	branched, cancel := branchContext(parent)
+	defer cancel(nil)
+
+	// The dispatches made under the branched context must carry the request's override.
+	expr, ok := dispatchstrategy.FromContext(branched)
+	require.True(t, ok)
+	require.Equal(t, override, expr)
+	require.Equal(t, []string{"abc"}, metadata.ValueFromIncomingContext(branched, string(requestmeta.RequestIDKey)))
 }

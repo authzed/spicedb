@@ -20,6 +20,7 @@ import (
 	"github.com/authzed/spicedb/internal/dispatch/keys"
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/dispatch/secondary"
+	"github.com/authzed/spicedb/pkg/middleware/dispatchstrategy"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	v1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
@@ -60,6 +61,11 @@ type ClusterDispatcherConfig struct {
 	// StartingPrimaryHedgingDelay is the primary's hedging delay used until enough
 	// statistics are available. Defaults to defaultStartingPrimaryHedgingDelay.
 	StartingPrimaryHedgingDelay time.Duration
+
+	// StrategyOverrides, if set, lets a request replace SecondaryDispatchExprs, for itself and
+	// every dispatch it causes, with the strategy override it carries (see package
+	// dispatchstrategy). If nil, overrides are ignored.
+	StrategyOverrides *StrategyOverrides
 }
 
 // SecondaryDispatch defines a struct holding a client and its name for secondary
@@ -106,6 +112,7 @@ func NewClusterDispatcher(client ClusterClient, conn *grpc.ClientConn, config Cl
 		dispatchOverallTimeout: dispatchOverallTimeout,
 		secondaryDispatch:      config.SecondaryDispatch,
 		secondaryDispatchExprs: config.SecondaryDispatchExprs,
+		strategyOverrides:      config.StrategyOverrides,
 		stats:                  stats,
 	}, nil
 }
@@ -118,13 +125,35 @@ type clusterDispatcher struct {
 
 	secondaryDispatch      map[string]SecondaryDispatch
 	secondaryDispatchExprs map[string]*DispatchExpr
+	strategyOverrides      *StrategyOverrides
 	stats                  *raceStats
 }
 
-// dispatchPlanFor evaluates the dispatch expression configured for reqKey. It returns false
-// when there is no expression for reqKey or its evaluation failed: the request then goes to
-// the primary only.
+// mayUseSecondaries reports whether any request may be raced against secondaries: if not,
+// every request goes to the primary only, without evaluating anything.
+func (cr *clusterDispatcher) mayUseSecondaries() bool {
+	return len(cr.secondaryDispatch) > 0 && (len(cr.secondaryDispatchExprs) > 0 || cr.strategyOverrides != nil)
+}
+
+// dispatchPlanFor returns the plan of the request's strategy override, if it has one and
+// overrides are enabled, or else evaluates the dispatch expression configured for reqKey. It
+// returns false when neither applies, or the expression failed to evaluate: the request then
+// goes to the primary only.
 func (cr *clusterDispatcher) dispatchPlanFor(ctx context.Context, reqKey string, req any) (dispatchPlan, bool) {
+	if cr.strategyOverrides != nil {
+		if override, ok := dispatchstrategy.FromContext(ctx); ok {
+			plan, err := cr.strategyOverrides.plan(reqKey, override)
+			if err == nil {
+				return plan, true
+			}
+
+			// The API validated the override, so this node's configuration differs from that
+			// of the node that received the request.
+			metricsFor(reqKey).expressionEvalFailures.Inc()
+			log.Ctx(ctx).Warn().Err(err).Str("override", override).Msg("invalid dispatch strategy override; using the configured dispatch expression")
+		}
+	}
+
 	expr, ok := cr.secondaryDispatchExprs[reqKey]
 	if !ok {
 		return dispatchPlan{}, false
@@ -241,7 +270,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 	defer cancelFn()
 
 	// If no secondary dispatches are defined, just invoke directly.
-	if len(cr.secondaryDispatchExprs) == 0 || len(cr.secondaryDispatch) == 0 {
+	if !cr.mayUseSecondaries() {
 		return handler(withTimeout, cr.clusterClient)
 	}
 
@@ -265,6 +294,7 @@ func dispatchSyncRequest[Q requestMessage, S responseMessage](
 		request:      req,
 		participants: participants,
 		stats:        cr.stats,
+		override:     plan.override,
 	}, plan.strategy, handler)
 }
 
@@ -383,7 +413,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 	defer cancelFn()
 
 	// If no secondary dispatches are defined, just invoke directly.
-	if len(cr.secondaryDispatchExprs) == 0 || len(cr.secondaryDispatch) == 0 {
+	if !cr.mayUseSecondaries() {
 		client, err := handler(ctxWithTimeout, cr.clusterClient)
 		if err != nil {
 			return err
@@ -398,6 +428,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 
 	var secondaryNames []string
 	var strategy secondaryStrategy = hedgedStrategy{}
+	override := false
 	allowPrimary := true
 	switch cursorLockedDispatcherName {
 	case primaryDispatcher:
@@ -407,6 +438,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 		if plan, ok := cr.dispatchPlanFor(ctxWithTimeout, reqKey, req); ok {
 			secondaryNames = plan.secondaries
 			strategy = plan.strategy
+			override = plan.override
 		}
 
 	default:
@@ -439,6 +471,7 @@ func dispatchStreamingRequest[Q streamingRequestMessage, R any](
 		request:      req,
 		participants: participants,
 		stats:        cr.stats,
+		override:     override,
 	}, strategy, handler, stream)
 }
 

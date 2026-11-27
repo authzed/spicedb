@@ -7,6 +7,7 @@ import (
 
 	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datalayer"
+	"github.com/authzed/spicedb/pkg/middleware/dispatchstrategy"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 )
 
@@ -28,6 +29,7 @@ func branchContext(ctx context.Context) (context.Context, func(cancelErr error))
 	}
 
 	detachedContext = requestid.PropagateIfExists(ctx, detachedContext)
+	detachedContext = dispatchstrategy.PropagateIfExists(ctx, detachedContext)
 
 	return context.WithCancelCause(detachedContext)
 }

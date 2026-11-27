@@ -42,6 +42,7 @@ type optionState struct {
 	secondaryUpstreamExprs                       map[string]string
 	secondaryUpstreamMaximumPrimaryHedgingDelays map[string]string
 	secondaryStrategies                          []secondary.Function
+	strategyOverrides                            *remote.StrategyOverrides
 	dispatchChunkSize                            uint16
 	startingPrimaryHedgingDelay                  time.Duration
 	caveatTypeSet                                *caveattypes.TypeSet
@@ -107,6 +108,14 @@ func SecondaryUpstreamExprs(addrs map[string]string) Option {
 func SecondaryStrategies(functions []secondary.Function) Option {
 	return func(state *optionState) {
 		state.secondaryStrategies = functions
+	}
+}
+
+// StrategyOverrides lets requests override the secondary dispatch expressions with the strategy
+// override they carry. If nil, the default, overrides are ignored.
+func StrategyOverrides(overrides *remote.StrategyOverrides) Option {
+	return func(state *optionState) {
+		state.strategyOverrides = overrides
 	}
 }
 
@@ -340,6 +349,7 @@ func NewDispatcher(options ...Option) (dispatch.Dispatcher, error) {
 			SecondaryDispatch:           secondaryClients,
 			SecondaryDispatchExprs:      secondaryExprs,
 			StartingPrimaryHedgingDelay: opts.startingPrimaryHedgingDelay,
+			StrategyOverrides:           opts.strategyOverrides,
 		})
 		if err != nil {
 			return nil, err

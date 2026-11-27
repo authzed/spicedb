@@ -14,7 +14,7 @@ import (
 //
 // Label cardinality is bounded and independent of request contents: rpc is one of the request
 // kinds in supportsSecondaries, strategy one of the registered strategy names or cursor_locked,
-// reason one of two fixed values, and handler_name one of the configured secondary names or
+// source and reason one of two fixed values each, and handler_name one of the configured secondary names or
 // $primary.
 
 var dispatchCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -51,8 +51,8 @@ var secondaryStrategyCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "spicedb",
 	Subsystem: "dispatch",
 	Name:      "remote_dispatch_secondary_strategy_total",
-	Help:      "number of dispatches with secondaries, by the strategy used to race them (cursor_locked for continuations pinned to a secondary)",
-}, []string{"rpc", "strategy"})
+	Help:      "number of dispatches with secondaries, by the strategy used to race them (cursor_locked for continuations pinned to a secondary) and its source: override if it came from the request's strategy override, config otherwise",
+}, []string{"rpc", "strategy", "source"})
 
 var primaryReleaseCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Namespace: "spicedb",
@@ -88,11 +88,22 @@ type requestKindMetrics struct {
 	primaryDispatched prometheus.Counter
 	primaryCanceled   prometheus.Counter
 
-	strategies map[string]prometheus.Counter // by strategy name
+	// strategies and overrideStrategies hold, by strategy name, the counters of races whose
+	// strategy came from the configuration and from the request's strategy override.
+	strategies         map[string]prometheus.Counter
+	overrideStrategies map[string]prometheus.Counter
 
 	releasedAtDeadline     prometheus.Counter
 	releasedOnAllFailures  prometheus.Counter
 	expressionEvalFailures prometheus.Counter
+}
+
+// sourceLabel is the source label of secondaryStrategyCounter.
+func sourceLabel(override bool) string {
+	if override {
+		return "override"
+	}
+	return "config"
 }
 
 // cursorLockedStrategyName labels races of continuations pinned to the secondary that produced
@@ -108,14 +119,17 @@ var metricsByRequestKind = func() map[string]*requestKindMetrics {
 }()
 
 func newRequestKindMetrics(reqKey string) *requestKindMetrics {
-	strategies := make(map[string]prometheus.Counter, len(registeredStrategies)+1)
-	for _, strategy := range registeredStrategies {
-		if strategy.primaryOnly {
-			continue // never races, so never counted
+	strategiesFrom := func(override bool) map[string]prometheus.Counter {
+		strategies := make(map[string]prometheus.Counter, len(registeredStrategies)+1)
+		for _, strategy := range registeredStrategies {
+			if strategy.primaryOnly {
+				continue // never races, so never counted
+			}
+			strategies[strategy.function] = secondaryStrategyCounter.WithLabelValues(reqKey, strategy.function, sourceLabel(override))
 		}
-		strategies[strategy.function] = secondaryStrategyCounter.WithLabelValues(reqKey, strategy.function)
+		strategies[cursorLockedStrategyName] = secondaryStrategyCounter.WithLabelValues(reqKey, cursorLockedStrategyName, sourceLabel(override))
+		return strategies
 	}
-	strategies[cursorLockedStrategyName] = secondaryStrategyCounter.WithLabelValues(reqKey, cursorLockedStrategyName)
 
 	return &requestKindMetrics{
 		reqKey:                 reqKey,
@@ -123,7 +137,8 @@ func newRequestKindMetrics(reqKey string) *requestKindMetrics {
 		hedgeActualWait:        hedgeActualWaitHistogram.WithLabelValues(reqKey),
 		primaryDispatched:      primaryDispatch.WithLabelValues("false", reqKey),
 		primaryCanceled:        primaryDispatch.WithLabelValues("true", reqKey),
-		strategies:             strategies,
+		strategies:             strategiesFrom(false),
+		overrideStrategies:     strategiesFrom(true),
 		releasedAtDeadline:     primaryReleaseCounter.WithLabelValues(reqKey, "deadline"),
 		releasedOnAllFailures:  primaryReleaseCounter.WithLabelValues(reqKey, "secondaries_failed"),
 		expressionEvalFailures: exprEvalErrorsCounter.WithLabelValues(reqKey),
@@ -139,11 +154,15 @@ func metricsFor(reqKey string) *requestKindMetrics {
 	return newRequestKindMetrics(reqKey)
 }
 
-func (m *requestKindMetrics) strategy(name string) prometheus.Counter {
-	if counter, ok := m.strategies[name]; ok {
+func (m *requestKindMetrics) strategy(name string, override bool) prometheus.Counter {
+	strategies := m.strategies
+	if override {
+		strategies = m.overrideStrategies
+	}
+	if counter, ok := strategies[name]; ok {
 		return counter
 	}
-	return secondaryStrategyCounter.WithLabelValues(m.reqKey, name)
+	return secondaryStrategyCounter.WithLabelValues(m.reqKey, name, sourceLabel(override))
 }
 
 //go:noinline

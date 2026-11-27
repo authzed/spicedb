@@ -148,6 +148,10 @@ var dispatchPlanCelType = cel.OpaqueType("DispatchPlan")
 type dispatchPlan struct {
 	secondaries []string
 	strategy    secondaryStrategy
+
+	// override is set if the plan comes from the request's strategy override, rather than from
+	// the configured expression.
+	override bool
 }
 
 // dispatchPlanVal adapts dispatchPlan to a CEL value.
@@ -213,15 +217,17 @@ func toStringSlice(v ref.Val) ([]string, error) {
 }
 
 // newDispatchEnv returns the CEL environment of dispatch expressions, with the built-in strategy
-// functions and the given registered ones, and the descriptors of all of them. A registered
+// functions and the given registered ones, and the descriptors of all of them. The `request`
+// variable is declared only if withRequest is set: strategy overrides cannot reference it. A registered
 // function is rejected unless it has a Strategy, its name is not already a function (a built-in
 // strategy, a CEL function such as duration, or another registered one), and it can be called
 // by that name: CEL reserved words and names that are not identifiers cannot be.
-func newDispatchEnv(functions []secondary.Function) (*cel.Env, []strategyDescriptor, error) {
-	env, err := cel.NewEnv(append(strategyFunctions(registeredStrategies),
-		cel.OptionalTypes(cel.OptionalTypesVersion(0)),
-		cel.Variable("request", cel.DynType),
-	)...)
+func newDispatchEnv(functions []secondary.Function, withRequest bool) (*cel.Env, []strategyDescriptor, error) {
+	opts := append(strategyFunctions(registeredStrategies), cel.OptionalTypes(cel.OptionalTypesVersion(0)))
+	if withRequest {
+		opts = append(opts, cel.Variable("request", cel.DynType))
+	}
+	env, err := cel.NewEnv(opts...)
 	if err != nil || len(functions) == 0 {
 		return env, registeredStrategies, err
 	}
@@ -266,11 +272,27 @@ func ParseDispatchExpression(methodName string, exprString string, functions ...
 		return nil, errors.New("unable to initialize dispatch expression type registry")
 	}
 
-	celEnv, strategies, err := newDispatchEnv(functions)
+	celEnv, strategies, err := newDispatchEnv(functions, true)
 	if err != nil {
 		return nil, err
 	}
 
+	prg, err := compileDispatchExpression(celEnv, strategies, methodName, exprString)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DispatchExpr{
+		env:        celEnv,
+		registry:   registry,
+		methodName: methodName,
+		prg:        prg,
+	}, nil
+}
+
+// compileDispatchExpression compiles a dispatch expression of the request kind methodName, and
+// checks what can be checked before it is evaluated.
+func compileDispatchExpression(celEnv *cel.Env, strategies []strategyDescriptor, methodName, exprString string) (cel.Program, error) {
 	ast, issues := celEnv.CompileSource(common.NewStringSource(exprString, methodName))
 	if issues != nil && issues.Err() != nil {
 		if strings.Contains(issues.Err().Error(), dispatchPlanCelType.String()) {
@@ -297,17 +319,7 @@ func ParseDispatchExpression(methodName string, exprString string, functions ...
 	runDispatchOps = append(runDispatchOps, cel.EvalOptions(cel.OptPartialEval))
 	runDispatchOps = append(runDispatchOps, cel.CostLimit(50))
 
-	prg, err := celEnv.Program(ast, runDispatchOps...)
-	if err != nil {
-		return nil, err
-	}
-
-	return &DispatchExpr{
-		env:        celEnv,
-		registry:   registry,
-		methodName: methodName,
-		prg:        prg,
-	}, nil
+	return celEnv.Program(ast, runDispatchOps...)
 }
 
 // runDispatchExpr runs a dispatch CEL expression over the given request and returns the
@@ -322,7 +334,12 @@ func runDispatchExpr[R any](de *DispatchExpr, request R) (dispatchPlan, error) {
 		return dispatchPlan{}, err
 	}
 
-	val, _, err := de.prg.Eval(activation)
+	return evalDispatchProgram(de.prg, activation)
+}
+
+// evalDispatchProgram evaluates a compiled dispatch expression into a plan.
+func evalDispatchProgram(prg cel.Program, activation any) (dispatchPlan, error) {
+	val, _, err := prg.Eval(activation)
 	if err != nil {
 		return dispatchPlan{}, fmt.Errorf("unable to evaluate dispatch expression: %w", err)
 	}

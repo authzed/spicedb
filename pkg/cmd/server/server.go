@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"slices"
 	"strconv"
@@ -32,6 +33,7 @@ import (
 	combineddispatch "github.com/authzed/spicedb/internal/dispatch/combined"
 	"github.com/authzed/spicedb/internal/dispatch/graph"
 	"github.com/authzed/spicedb/internal/dispatch/keys"
+	"github.com/authzed/spicedb/internal/dispatch/remote"
 	"github.com/authzed/spicedb/internal/gateway"
 	"github.com/authzed/spicedb/internal/grpchelpers"
 	log "github.com/authzed/spicedb/internal/logging"
@@ -48,6 +50,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/dispatch/secondary"
 	"github.com/authzed/spicedb/pkg/middleware/consistency"
+	"github.com/authzed/spicedb/pkg/middleware/dispatchstrategy"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/query"
 	"github.com/authzed/spicedb/pkg/query/signals"
@@ -134,6 +137,11 @@ type Config struct {
 	// DispatchSecondaryStrategies adds strategy functions that the secondary dispatch
 	// expressions (DispatchSecondaryUpstreamExprs) may call, for programs that embed SpiceDB.
 	DispatchSecondaryStrategies []secondary.Function `debugmap:"visible"`
+
+	// DispatchSecondaryAllowStrategyOverride lets API requests replace the secondary dispatch
+	// expressions, for themselves and every dispatch they cause, with the expression in their
+	// requestmeta.RequestDispatchStrategyKey header. If unset, such requests are rejected.
+	DispatchSecondaryAllowStrategyOverride bool `debugmap:"visible"`
 
 	DispatchCacheConfig         CacheConfig `debugmap:"visible"`
 	ClusterDispatchCacheConfig  CacheConfig `debugmap:"visible"`
@@ -242,6 +250,27 @@ func (c *Config) builtCachePercentTotal() uint64 {
 // Complete validates the config and fills out defaults.
 // if there is no error, a completedServerConfig (with limited options for
 // mutation) is returned.
+// dispatchStrategyOverrides returns the strategy overrides of the dispatcher, or nil if they are
+// disabled.
+func (c *Config) dispatchStrategyOverrides() (*remote.StrategyOverrides, error) {
+	if !c.DispatchSecondaryAllowStrategyOverride {
+		return nil, nil
+	}
+
+	switch {
+	case c.Dispatcher != nil:
+		return nil, errors.New("dispatch strategy overrides are not supported with a custom dispatcher")
+	case c.DispatchUpstreamAddr == "" || len(c.DispatchSecondaryUpstreamAddrs) == 0:
+		return nil, errors.New("dispatch strategy overrides require a dispatch upstream and secondary dispatch upstreams")
+	}
+
+	overrides, err := remote.NewStrategyOverrides(slices.Sorted(maps.Keys(c.DispatchSecondaryUpstreamAddrs)), c.DispatchSecondaryStrategies...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to configure dispatch strategy overrides: %w", err)
+	}
+	return overrides, nil
+}
+
 func (c *Config) Complete(ctx context.Context) (RunnableServer, error) {
 	return c.complete(ctx)
 }
@@ -381,6 +410,11 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 	closeables.AddWithoutError(lr3ChunkCache.Close)
 	log.Ctx(ctx).Info().EmbedObject(lr3ChunkCache).Msg("configured LR3 resource chunk cache")
 
+	strategyOverrides, err := c.dispatchStrategyOverrides()
+	if err != nil {
+		return nil, err
+	}
+
 	dispatcher := c.Dispatcher
 	if dispatcher == nil {
 		cc, err := CompleteCache[keys.DispatchCacheKey, any](c.OTel.PrometheusRegistry, c.DispatchCacheConfig.WithRevisionParameters(
@@ -424,15 +458,18 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 			combineddispatch.SecondaryUpstreamExprs(c.DispatchSecondaryUpstreamExprs),
 			combineddispatch.SecondaryMaximumPrimaryHedgingDelays(c.DispatchSecondaryMaximumPrimaryHedgingDelays),
 			combineddispatch.SecondaryStrategies(c.DispatchSecondaryStrategies),
+			combineddispatch.StrategyOverrides(strategyOverrides),
 			combineddispatch.GrpcPresharedKey(dispatchPresharedKey),
 			combineddispatch.GrpcDialOpts(
 				grpc.WithStatsHandler(otelgrpc.NewClientHandler()),
 				grpc.WithDefaultServiceConfig(hashringConfigJSON),
 				grpc.WithChainUnaryInterceptor(
 					requestid.UnaryClientInterceptor(),
+					dispatchstrategy.UnaryClientInterceptor(),
 				),
 				grpc.WithChainStreamInterceptor(
 					requestid.StreamClientInterceptor(),
+					dispatchstrategy.StreamClientInterceptor(),
 				),
 			),
 			combineddispatch.Metrics(dispatch.MetricsOptions{PrometheusSubsystem: c.DispatchClientMetricsPrefix, PrometheusRegistry: prometheusRegistry}),
@@ -535,6 +572,9 @@ func (c *Config) complete(ctx context.Context) (*completedServerConfig, error) {
 		MiddlewareServiceLabel:    serverName,
 		MismatchingZedTokenOption: mismatchZedTokenOption,
 		MemoryUsageProvider:       memoryUsageProvider,
+	}
+	if strategyOverrides != nil {
+		opts.DispatchStrategyOverrides = strategyOverrides
 	}
 	opts = opts.WithDatastore(ds, dlOpts...)
 

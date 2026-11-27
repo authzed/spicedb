@@ -89,6 +89,7 @@ func (c *Config) ToOption() ConfigOption {
 		to.DispatchSecondaryMaximumPrimaryHedgingDelays = c.DispatchSecondaryMaximumPrimaryHedgingDelays
 		to.DispatchPrimaryDelayForTesting = c.DispatchPrimaryDelayForTesting
 		to.DispatchSecondaryStrategies = c.DispatchSecondaryStrategies
+		to.DispatchSecondaryAllowStrategyOverride = c.DispatchSecondaryAllowStrategyOverride
 		to.DispatchCacheConfig = c.DispatchCacheConfig
 		to.ClusterDispatchCacheConfig = c.ClusterDispatchCacheConfig
 		to.LR3ResourceChunkCacheConfig = c.LR3ResourceChunkCacheConfig
@@ -330,6 +331,7 @@ func (c *Config) DebugMap() map[string]any {
 	} else {
 		debugMap["DispatchSecondaryStrategies"] = fmt.Sprintf("(slice of size %d)", len(c.DispatchSecondaryStrategies))
 	}
+	debugMap["DispatchSecondaryAllowStrategyOverride"] = c.DispatchSecondaryAllowStrategyOverride
 	if dm, ok := any(&c.DispatchCacheConfig).(interface {
 		DebugMap() map[string]any
 	}); ok {
@@ -845,6 +847,13 @@ func WithDispatchSecondaryStrategies(dispatchSecondaryStrategies secondary.Funct
 func SetDispatchSecondaryStrategies(dispatchSecondaryStrategies []secondary.Function) ConfigOption {
 	return func(c *Config) {
 		c.DispatchSecondaryStrategies = dispatchSecondaryStrategies
+	}
+}
+
+// WithDispatchSecondaryAllowStrategyOverride returns an option that can set DispatchSecondaryAllowStrategyOverride on a Config
+func WithDispatchSecondaryAllowStrategyOverride(dispatchSecondaryAllowStrategyOverride bool) ConfigOption {
+	return func(c *Config) {
+		c.DispatchSecondaryAllowStrategyOverride = dispatchSecondaryAllowStrategyOverride
 	}
 }
 

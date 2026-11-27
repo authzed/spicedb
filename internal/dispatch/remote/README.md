@@ -127,19 +127,55 @@ built-in ones, through an adapter ([strategy_external.go](strategy_external.go))
 built-in strategies don't go through. Their races are counted in
 `remote_dispatch_secondary_strategy_total` under the function's name.
 
+## Strategy overrides
+
+With `--experimental-dispatch-secondary-allow-strategy-override`, an API request can replace the
+configured expressions with its own, for itself and every dispatch it causes, by setting the
+`io.spicedb.dispatchstrategy` header (`requestmeta.WithDispatchStrategy` in authzed-go, or zed's
+`--dispatch-strategy`):
+
+```cel
+prefer_secondary(['tiger'], duration('50ms'))
+```
+
+An override is an expression like the configured ones, except that it cannot reference
+`request`: it is the same for every dispatch of a request, so it evaluates to one plan per
+request kind, computed once and cached ([override.go](override.go)).
+
+The API validates the override before running the request
+([`pkg/middleware/dispatchstrategy`](../../../pkg/middleware/dispatchstrategy)). It must parse and
+evaluate for every request kind the API method dispatches (LookupResources dispatches
+`lookupresources` and `check`), and name only configured secondaries. Otherwise, or when overrides
+are disabled, or when the method dispatches nothing that supports secondaries, the request fails
+with `InvalidArgument`. The override then travels with the request as gRPC metadata: dispatch
+clients forward it to the nodes they dispatch to, and `branchContext` keeps it in the contexts it
+detaches. Every node that dispatches applies it, so the whole request uses it. A node that cannot
+resolve an override it receives, such as one configured with different secondaries, uses its
+configured expression and counts the failure in `remote_dispatch_expr_eval_errors_total`.
+
+An override changes only how a dispatch is raced, so:
+
+- a dispatch answered from the dispatch cache, or merged with a concurrent identical one, never
+  reaches the race;
+- a continuation locked to the secondary that produced its cursor ignores the override;
+- with `prefer_secondary`, each node the primary handles waits again for its own secondaries, so
+  a deep request may wait up to the deadline once per level. Keep override deadlines short.
+
 ## Metrics
 
 All are prefixed with `spicedb_dispatch_`:
 
 - `remote_dispatch_handler_total{request_kind, handler_name}`: which participant won.
-- `remote_dispatch_secondary_strategy_total{rpc, strategy}`: dispatches that had secondaries, by
-  strategy (`hedged`, `prefer_secondary`, or `cursor_locked` for continuations pinned to a
-  secondary).
+- `remote_dispatch_secondary_strategy_total{rpc, strategy, source}`: dispatches that had
+  secondaries, by strategy (`hedged`, `prefer_secondary`, or `cursor_locked` for continuations
+  pinned to a secondary), and by source: `override` if the strategy came from the request's
+  strategy override, `config` otherwise.
 - `remote_dispatch_prefer_secondary_primary_release_total{rpc, reason}`: why a
   `prefer_secondary` primary started (`deadline` or `secondaries_failed`).
 - `remote_dispatch_primary_total{cancelled, rpc}`: whether a scheduled primary ran.
 - `remote_dispatch_expr_eval_errors_total{rpc}`: dispatches whose expression failed to evaluate
-  and went to the primary only.
+  and went to the primary only, and dispatches whose strategy override this node could not
+  resolve and that used the configured expression instead.
 - `remote_dispatch_hedge_wait_duration_seconds` and `..._hedge_actual_wait_duration_seconds`:
   computed and actual primary wait, `hedged` only.
 
