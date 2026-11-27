@@ -207,6 +207,18 @@ func testPostgresDatastore(t *testing.T, config postgresTestConfig) {
 				WithRevisionHeartbeat(false),
 			))
 
+			t.Run("LongTransactionWatch", createDatastoreTest(
+				b,
+				LongTransactionWatchTest,
+				RevisionQuantization(0),
+				GCWindow(1*time.Millisecond),
+				GCInterval(disableBackgroundGC),
+				WatchBufferLength(50),
+				MigrationPhase(config.migrationPhase),
+				// A heartbeat starts after the long transaction commits and ends the loop.
+				WithRevisionHeartbeat(false),
+			))
+
 			t.Run("OverlappingRevisionWatch", createDatastoreTest(
 				b,
 				OverlappingRevisionWatchTest,
@@ -1407,6 +1419,73 @@ func ConcurrentRevisionWatchTest(t *testing.T, ds datastore.Datastore) {
 		defer seenWatchRevisionsLock.Unlock()
 		return len(seenWatchRevisions) == 3 && seenWatchRevisions[len(seenWatchRevisions)-1].Equal(afterRev)
 	}, 2*time.Second, 5*time.Millisecond)
+}
+
+// LongTransactionWatchTest checks that Watch delivers each transaction once when a shorter
+// transaction starts after a longer one, commits first, and is delivered before the longer one
+// commits.
+func LongTransactionWatchTest(t *testing.T, ds datastore.Datastore) {
+	require := require.New(t)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	rev, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.LegacyWriteNamespaces(ctx, namespace.Namespace(
+			"resource",
+			namespace.MustRelation("reader", nil),
+		), namespace.Namespace("user"))
+	})
+	require.NoError(err)
+
+	changes, errs := ds.Watch(ctx, rev, datastore.WatchJustRelationships())
+
+	// The long transaction takes its transaction ID, then waits until the short one is delivered.
+	longStarted := make(chan struct{})
+	shortDelivered := make(chan struct{})
+	g := errgroup.Group{}
+	g.Go(func() error {
+		_, err := ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+			close(longStarted)
+			<-shortDelivered
+			return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+				tuple.Touch(tuple.MustParse("resource:long#reader@user:1")),
+			})
+		}, options.WithDisableRetries(true))
+		return err
+	})
+
+	<-longStarted
+	_, err = ds.ReadWriteTx(ctx, func(ctx context.Context, rwt datastore.ReadWriteTransaction) error {
+		return rwt.WriteRelationships(ctx, []tuple.RelationshipUpdate{
+			tuple.Touch(tuple.MustParse("resource:short#reader@user:1")),
+		})
+	}, options.WithDisableRetries(true))
+	require.NoError(err)
+
+	// Count deliveries per resource until the watch has been quiet for a while.
+	delivered := map[string]int{}
+	for {
+		select {
+		case change, ok := <-changes:
+			if !ok {
+				require.Fail("watch closed", "%v", <-errs)
+			}
+			for _, update := range change.RelationshipChanges {
+				resourceID := update.Relationship.Resource.ObjectID
+				delivered[resourceID]++
+				// Stop at the first repeat: without a later write, the repeats never end.
+				require.Equal(1, delivered[resourceID], "%s delivered again", resourceID)
+				if resourceID == "short" {
+					close(shortDelivered)
+					require.NoError(g.Wait())
+				}
+			}
+		case <-time.After(1 * time.Second):
+			require.Equal(map[string]int{"short": 1, "long": 1}, delivered)
+			return
+		}
+	}
 }
 
 func OverlappingRevisionWatchTest(t *testing.T, ds datastore.Datastore) {

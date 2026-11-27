@@ -273,6 +273,27 @@ func (s pgSnapshot) markComplete(txid uint64) pgSnapshot {
 	return newSnapshot
 }
 
+// union returns a snapshot that sees a transaction as complete when either s or other does.
+// Only a transaction in progress in both stays in progress.
+func (s pgSnapshot) union(other pgSnapshot) pgSnapshot {
+	// A transaction below the new xmax that neither snapshot sees is in the xip list of one
+	// of them, so looking at both xip lists is enough.
+	var xipList []uint64
+	for _, txid := range slices.Concat(s.xipList, other.xipList) {
+		if !s.txVisible(txid) && !other.txVisible(txid) {
+			xipList = append(xipList, txid)
+		}
+	}
+	slices.Sort(xipList)
+	xipList = slices.Compact(xipList)
+
+	xmax := max(s.xmax, other.xmax)
+	if len(xipList) == 0 {
+		return pgSnapshot{xmin: xmax, xmax: xmax}
+	}
+	return pgSnapshot{xmin: xipList[0], xmax: xmax, xipList: xipList}
+}
+
 // markInProgress will create a new snapshot where the specified transaction will be marked as
 // in-progress and therefore invisible. For example, if the specified xmin falls between two
 // values in the xip list, it will be inserted in order.

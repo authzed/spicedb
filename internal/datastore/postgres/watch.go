@@ -172,18 +172,22 @@ func (pgd *pgDatastore) Watch(
 					}
 				}
 
-				// In order to make progress, we need to ensure that any seen transactions here are
-				// marked as done in the revision given back to Postgres on the next iteration. We pick
-				// the *last* transaction to start, as it should encompass all completed transactions
-				// except those running concurrently, which is handled by calling markComplete on the other
-				// transactions.
-				currentTxn = newTxns[len(newTxns)-1]
+				// The next poll starts from a snapshot that sees every transaction seen so far.
+				// - It keeps what the current snapshot sees. The snapshot of a transaction read in
+				//   this poll does not see a shorter transaction that started after it, even when
+				//   an earlier poll delivered it: starting from there delivers it again.
+				// - It adds what each transaction read in this poll sees, itself included. Those
+				//   transactions had committed before this poll, so this poll or an earlier one
+				//   delivered them.
+				lastTxn := newTxns[len(newTxns)-1]
+				seen := currentTxn.snapshot
 				for _, newTx := range newTxns {
-					currentTxn = postgresRevision{
-						snapshot:                      currentTxn.snapshot.markComplete(newTx.optionalTxID.Uint64),
-						optionalTxID:                  currentTxn.optionalTxID,
-						optionalInexactNanosTimestamp: currentTxn.optionalInexactNanosTimestamp,
-					}
+					seen = seen.union(newTx.snapshot)
+				}
+				currentTxn = postgresRevision{
+					snapshot:                      seen,
+					optionalTxID:                  lastTxn.optionalTxID,
+					optionalInexactNanosTimestamp: lastTxn.optionalInexactNanosTimestamp,
 				}
 
 				// If checkpoints were requested, output a checkpoint. While the Postgres datastore does not

@@ -255,6 +255,31 @@ func TestMarkInProgress(t *testing.T) {
 	}
 }
 
+func TestUnion(t *testing.T) {
+	testCases := []struct {
+		lhs      pgSnapshot
+		rhs      pgSnapshot
+		expected pgSnapshot
+	}{
+		{snap(5, 5), snap(5, 5), snap(5, 5)},
+		{snap(5, 5), snap(7, 7), snap(7, 7)},
+		{snap(5, 8, 5, 7), snap(5, 8, 5, 6), snap(5, 8, 5)},
+		{snap(5, 8, 6), snap(4, 6, 4), snap(6, 8, 6)},
+		{snap(5, 8, 6), snap(4, 10, 4, 6, 9), snap(6, 10, 6, 9)},
+		// A long transaction 6 read after a shorter one 7 that started after it: the
+		// cursor keeps 7, and learns that 6 is complete.
+		{snap(6, 8, 6), snap(7, 7), snap(8, 8)},
+	}
+
+	for _, tc := range testCases {
+		t.Run(fmt.Sprintf("%s|%s=>%s", tc.lhs, tc.rhs, tc.expected), func(t *testing.T) {
+			require := require.New(t)
+			require.Equal(tc.expected, tc.lhs.union(tc.rhs))
+			require.Equal(tc.expected, tc.rhs.union(tc.lhs))
+		})
+	}
+}
+
 func snap(xmin, xmax uint64, xips ...uint64) pgSnapshot {
 	return pgSnapshot{
 		xmin, xmax, xips,
