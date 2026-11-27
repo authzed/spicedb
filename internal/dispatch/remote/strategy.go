@@ -32,6 +32,9 @@ type raceRequest struct {
 	// participants holds the primary (when allowed) first, then the resolved secondaries.
 	participants []participant
 	stats        *raceStats
+
+	// override is set if the strategy comes from the request's strategy override.
+	override bool
 }
 
 // secondaryStrategy is the value produced by a CEL strategy function such as hedged(...):

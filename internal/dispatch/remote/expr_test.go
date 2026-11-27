@@ -1,11 +1,16 @@
 package remote
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
+	authzedv1 "github.com/authzed/authzed-go/proto/authzed/api/v1"
+
+	"github.com/authzed/spicedb/pkg/dispatch/secondary"
+	"github.com/authzed/spicedb/pkg/middleware/dispatchstrategy"
 	corev1 "github.com/authzed/spicedb/pkg/proto/core/v1"
 	dispatchv1 "github.com/authzed/spicedb/pkg/proto/dispatch/v1"
 )
@@ -412,4 +417,128 @@ func TestPreferPrimaryEqualsHedgedEmpty(t *testing.T) {
 		plans = append(plans, plan)
 	}
 	require.Equal(t, plans[1], plans[0])
+}
+
+func TestStrategyOverrides(t *testing.T) {
+	lookupResourcesOnly := secondary.Function{Name: "lr_only", Methods: []string{"lookupresources"}, Strategy: basePolicyStrategy{}}
+	overrides, err := NewStrategyOverrides([]string{"tiger", "other"}, lookupResourcesOnly)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name          string
+		expr          string
+		kinds         []string
+		expected      dispatchPlan
+		expectedError string
+	}{
+		{
+			name:     "plain list is hedged",
+			expr:     "['tiger']",
+			kinds:    []string{"check"},
+			expected: dispatchPlan{secondaries: []string{"tiger"}, strategy: hedgedStrategy{}, override: true},
+		},
+		{
+			name:     "prefer_secondary",
+			expr:     "prefer_secondary(['tiger', 'other'], duration('50ms'))",
+			kinds:    []string{"lookupresources", "check"},
+			expected: dispatchPlan{secondaries: []string{"tiger", "other"}, strategy: preferSecondaryStrategy{deadline: 50 * time.Millisecond}, override: true},
+		},
+		{
+			name:     "prefer_primary",
+			expr:     "prefer_primary()",
+			kinds:    []string{"lookupsubjects"},
+			expected: dispatchPlan{secondaries: []string{}, strategy: hedgedStrategy{}, override: true},
+		},
+		{
+			name:          "request is not available",
+			expr:          "request.resource_relation.namespace == 'doc' ? ['tiger'] : []",
+			kinds:         []string{"check"},
+			expectedError: "undeclared reference to 'request'",
+		},
+		{
+			name:          "unknown secondary",
+			expr:          "hedged(['nope'])",
+			kinds:         []string{"check"},
+			expectedError: "unknown secondary dispatcher `nope`",
+		},
+		{
+			name:          "literal non-positive duration",
+			expr:          "prefer_secondary(['tiger'], duration('0s'))",
+			kinds:         []string{"check"},
+			expectedError: "must be positive",
+		},
+		{
+			name:          "computed non-positive duration",
+			expr:          "prefer_secondary(['tiger'], duration('1s') - duration('1s'))",
+			kinds:         []string{"check"},
+			expectedError: "must be positive",
+		},
+		{
+			name:          "kind without secondaries",
+			expr:          "['tiger']",
+			kinds:         []string{"expand"},
+			expectedError: "does not support secondary dispatchers",
+		},
+		{
+			name:     "external strategy for its kind",
+			expr:     "lr_only(['tiger'])",
+			kinds:    []string{"lookupresources"},
+			expected: dispatchPlan{secondaries: []string{"tiger"}, strategy: externalStrategy{function: "lr_only", strategy: basePolicyStrategy{}}, override: true},
+		},
+		{
+			name:          "external strategy for a kind the request also dispatches",
+			expr:          "lr_only(['tiger'])",
+			kinds:         []string{"lookupresources", "check"},
+			expectedError: "lr_only: not supported in `check` expressions",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := overrides.Validate(tc.expr, tc.kinds...)
+			if tc.expectedError != "" {
+				require.ErrorContains(t, err, tc.expectedError)
+				return
+			}
+			require.NoError(t, err)
+
+			for _, kind := range tc.kinds {
+				plan, err := overrides.plan(kind, tc.expr)
+				require.NoError(t, err)
+				require.Equal(t, tc.expected, plan)
+			}
+		})
+	}
+}
+
+func TestStrategyOverridesRequireSecondaries(t *testing.T) {
+	_, err := NewStrategyOverrides(nil)
+	require.ErrorContains(t, err, "at least one secondary")
+}
+
+func TestStrategyOverridesCacheIsBounded(t *testing.T) {
+	overrides, err := NewStrategyOverrides([]string{"tiger"})
+	require.NoError(t, err)
+
+	for i := range maxCachedOverrides + 10 {
+		expr := fmt.Sprintf("hedged(['tiger'], duration('%dms'))", i+1)
+		plan, err := overrides.plan("check", expr)
+		require.NoError(t, err)
+		require.Equal(t, hedgedStrategy{maxDelay: time.Duration(i+1) * time.Millisecond}, plan.strategy)
+	}
+	require.Len(t, overrides.plans, maxCachedOverrides)
+}
+
+func TestOverrideRequestKindsSupportSecondaries(t *testing.T) {
+	for _, method := range []string{
+		authzedv1.PermissionsService_CheckPermission_FullMethodName,
+		authzedv1.PermissionsService_CheckBulkPermissions_FullMethodName,
+		authzedv1.ExperimentalService_BulkCheckPermission_FullMethodName,
+		authzedv1.PermissionsService_LookupResources_FullMethodName,
+		authzedv1.PermissionsService_LookupSubjects_FullMethodName,
+	} {
+		kinds, ok := dispatchstrategy.RequestKinds(method)
+		require.True(t, ok, method)
+		for _, kind := range kinds {
+			require.Contains(t, supportsSecondaries, kind, method)
+		}
+	}
 }

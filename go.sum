@@ -54,6 +54,8 @@ github.com/antlr4-go/antlr/v4 v4.13.1 h1:SqQKkuVZ+zWkMMNkjy5FZe5mr5WURWnlpmOuzYW
 github.com/antlr4-go/antlr/v4 v4.13.1/go.mod h1:GKmUxMtwp6ZgGwZSva4eWPC5mS6vUAmOABFgjdkM7Nw=
 github.com/authzed/authzed-go v1.11.1-0.20261120130125-380614b108c9 h1:sKnDZxkAMX87JnkumryAfZyVEhnwJS2ZAO5TtsrlQJ8=
 github.com/authzed/authzed-go v1.11.1-0.20261120130125-380614b108c9/go.mod h1:oS45u7pbtfmSyEU+yt5MC4cC71rQGqqJmjK95GAbRFM=
+github.com/authzed/authzed-go v1.11.1-0.20261127115002-a63d5fb80238 h1:mYNUpVftv89a1n9A6IDw43QWL+TJftZd8fiRlTwG/+w=
+github.com/authzed/authzed-go v1.11.1-0.20261127115002-a63d5fb80238/go.mod h1:oS45u7pbtfmSyEU+yt5MC4cC71rQGqqJmjK95GAbRFM=
 github.com/authzed/cel-go v0.32.0 h1:1IQD9qFvem2DWdy3PyMNqbVJiyNCBUHbh7SjR9JfbPY=
 github.com/authzed/cel-go v0.32.0/go.mod h1:Jp4Wbt+Tbe8kiX6xz5xfIXy56qoqS0uB2R+mYn+MQnU=
 github.com/authzed/consistent v0.4.0 h1:/OQ6rdrE0btNG11E97NjS8RmVSV5y3h6uyoQSNSf0Gg=

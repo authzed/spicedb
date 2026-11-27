@@ -77,7 +77,7 @@ func TestExternalStrategyRunsTheRace(t *testing.T) {
 			StartingPrimaryHedgingDelay: time.Millisecond,
 		})
 		require.NoError(t, err)
-		strategyCount := testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("check", "primary_only_wins"))
+		strategyCount := testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("check", "primary_only_wins", "config"))
 
 		req := testCheckRequest()
 		resp, err := d.DispatchCheck(t.Context(), req)
@@ -93,7 +93,7 @@ func TestExternalStrategyRunsTheRace(t *testing.T) {
 			{Name: "secondary"},
 		}, strategy.race.Participants)
 		require.Equal(t, map[string]uint32{secondary.PrimaryName: fromPrimary, "secondary": fromSecondary}, strategy.results)
-		require.InDelta(t, strategyCount+1, testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("check", "primary_only_wins")), 0)
+		require.InDelta(t, strategyCount+1, testutil.ToFloat64(secondaryStrategyCounter.WithLabelValues("check", "primary_only_wins", "config")), 0)
 	})
 }
 
@@ -185,7 +185,7 @@ func TestExternalStrategyRegistration(t *testing.T) {
 
 func TestExternalStrategiesDoNotModifyBuiltIns(t *testing.T) {
 	before := len(registeredStrategies)
-	_, strategies, err := newDispatchEnv([]secondary.Function{{Name: "mine", Strategy: basePolicyStrategy{}}})
+	_, strategies, err := newDispatchEnv([]secondary.Function{{Name: "mine", Strategy: basePolicyStrategy{}}}, true)
 	require.NoError(t, err)
 	require.Len(t, strategies, before+1)
 	require.Len(t, registeredStrategies, before)

@@ -38,6 +38,7 @@ import (
 	"github.com/authzed/spicedb/pkg/datalayer"
 	"github.com/authzed/spicedb/pkg/datastore"
 	consistencymw "github.com/authzed/spicedb/pkg/middleware/consistency"
+	"github.com/authzed/spicedb/pkg/middleware/dispatchstrategy"
 	logmw "github.com/authzed/spicedb/pkg/middleware/logging"
 	"github.com/authzed/spicedb/pkg/middleware/requestid"
 	"github.com/authzed/spicedb/pkg/middleware/serverversion"
@@ -178,6 +179,7 @@ const (
 	DefaultMiddlewareGRPCAuth         = "grpcauth"
 	DefaultMiddlewareGRPCProm         = "grpcprom"
 	DefaultMiddlewareServerVersion    = "serverversion"
+	DefaultMiddlewareDispatchStrategy = "dispatchstrategy"
 	DefaultMiddlewareMemoryProtection = "memoryprotection"
 
 	DefaultInternalMiddlewareDispatch       = "dispatch"
@@ -199,6 +201,10 @@ type MiddlewareOption struct {
 	MismatchingZedTokenOption consistencymw.MismatchingTokenOption `debugmap:"visible"`
 
 	MemoryUsageProvider memoryprotection.MemoryUsageProvider `debugmap:"hidden"`
+
+	// DispatchStrategyOverrides validates the dispatch strategy overrides of requests. If nil,
+	// overrides are disabled and requests that carry one are rejected.
+	DispatchStrategyOverrides dispatchstrategy.Validator `debugmap:"hidden"`
 
 	unaryDatastoreMiddleware  *ReferenceableMiddleware[grpc.UnaryServerInterceptor]  `debugmap:"hidden"`
 	streamDatastoreMiddleware *ReferenceableMiddleware[grpc.StreamServerInterceptor] `debugmap:"hidden"`
@@ -333,6 +339,11 @@ func DefaultUnaryMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.UnaryS
 			Done(),
 
 		NewUnaryMiddleware().
+			WithName(DefaultMiddlewareDispatchStrategy).
+			WithInterceptor(dispatchstrategy.UnaryServerInterceptor(opts.DispatchStrategyOverrides)).
+			Done(),
+
+		NewUnaryMiddleware().
 			WithName(DefaultInternalMiddlewareDispatch).
 			WithInternal(true).
 			WithInterceptor(dispatchmw.UnaryServerInterceptor(opts.DispatcherForMiddleware)).
@@ -403,6 +414,11 @@ func DefaultStreamingMiddleware(opts MiddlewareOption) (*MiddlewareChain[grpc.St
 		NewStreamMiddleware().
 			WithName(DefaultMiddlewareServerVersion).
 			WithInterceptor(serverversion.StreamServerInterceptor(opts.EnableVersionResponse)).
+			Done(),
+
+		NewStreamMiddleware().
+			WithName(DefaultMiddlewareDispatchStrategy).
+			WithInterceptor(dispatchstrategy.StreamServerInterceptor(opts.DispatchStrategyOverrides)).
 			Done(),
 
 		NewStreamMiddleware().
