@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -124,18 +125,25 @@ func (s pgSnapshot) replicaRevisionGuardExpression() string {
 
 // replicaContainsRevisionPredicate returns a SQL boolean expression, to be
 // evaluated on a replica's connection, that is true when the replica's current
-// snapshot contains every transaction visible in s. It is the SQL form of "the
-// replica's live snapshot dominates this revision":
+// snapshot contains every transaction visible in s. Either of two conditions
+// proves it:
 //
-//   - the replica's frontier (its snapshot xmax) must have reached the revision's
-//     xmax, so no transaction the revision can see is still in the replica's
-//     future; and
-//   - the replica must not still consider in-progress any transaction below the
-//     revision's xmax that the revision treats as committed (i.e. that is not in
-//     the revision's own in-progress list). Commit order does not follow xid
-//     order, so a lower-xid transaction the revision sees as committed can still be
-//     replaying on the replica even once higher xids have been applied; such a
-//     transaction would otherwise be silently missing.
+//   - the replica's xmin has passed every transaction s treats as committed.
+//     Every xid below a snapshot's xmin has completed.
+//   - the replica's frontier (its snapshot xmax) has reached the revision's xmax,
+//     and the replica's in-progress list holds no transaction below the
+//     revision's xmax that the revision treats as committed. Commit order does
+//     not follow xid order, so the frontier alone proves nothing: the replica can
+//     apply higher xids while a lower one is still replaying.
+//
+// The second condition is only usable when the replica exports its in-progress
+// list. A hot standby never does: Postgres keeps a standby snapshot's
+// in-progress xids in subxip, and pg_current_snapshot() exports only xip, so
+// pg_snapshot_xip() is always empty there even while transactions are replaying.
+// A snapshot whose xmin is below its xmax has at least one transaction in
+// progress, so an empty list means the list is hidden. The standby's xmin is
+// computed from the hidden list and stays accurate, so standbys rely on the
+// first condition alone.
 func (s pgSnapshot) replicaContainsRevisionPredicate() string {
 	revisionXip := make([]string, 0, len(s.xipList))
 	for _, xip := range s.xipList {
@@ -143,10 +151,25 @@ func (s pgSnapshot) replicaContainsRevisionPredicate() string {
 	}
 
 	return fmt.Sprintf(
-		`pg_snapshot_xmax(pg_current_snapshot()) >= '%d'::xid8 `+
+		`(pg_snapshot_xmin(pg_current_snapshot()) >= '%d'::xid8 `+
+			`OR (EXISTS (SELECT 1 FROM pg_snapshot_xip(pg_current_snapshot())) `+
+			`AND pg_snapshot_xmax(pg_current_snapshot()) >= '%d'::xid8 `+
 			`AND NOT EXISTS (`+
 			`SELECT 1 FROM pg_snapshot_xip(pg_current_snapshot()) AS replica_xip `+
-			`WHERE replica_xip < '%d'::xid8 AND replica_xip <> ALL (ARRAY[%s]::xid8[]))`,
-		s.xmax, s.xmax, strings.Join(revisionXip, ", "),
+			`WHERE replica_xip < '%d'::xid8 AND replica_xip <> ALL (ARRAY[%s]::xid8[]))))`,
+		s.committedFrontier(), s.xmax, s.xmax, strings.Join(revisionXip, ", "),
 	)
+}
+
+// committedFrontier returns one past the highest xid that s treats as
+// committed: every xid from the result up to s.xmax is in s's in-progress list.
+func (s pgSnapshot) committedFrontier() uint64 {
+	frontier := s.xmax
+	for frontier > s.xmin {
+		if _, inProgress := slices.BinarySearch(s.xipList, frontier-1); !inProgress {
+			break
+		}
+		frontier--
+	}
+	return frontier
 }
