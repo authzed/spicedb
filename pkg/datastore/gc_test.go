@@ -269,3 +269,60 @@ func TestGCUnlockOnTimeout(t *testing.T) {
 	require.True(t, gc.fakeGC.wasLocked, "GC should have been locked")
 	require.True(t, gc.fakeGC.wasUnlocked, "GC should have been unlocked")
 }
+
+// expiredOnlyDeleter reports a fixed number of expired relationships and
+// otherwise deletes nothing, so a GC run isolates the expired-relationship
+// counter.
+type expiredOnlyDeleter struct{ expired int64 }
+
+func (expiredOnlyDeleter) DeleteBeforeTx(uint64) (DeletionCounts, error) {
+	return DeletionCounts{}, nil
+}
+
+func (d expiredOnlyDeleter) DeleteExpiredRels() (int64, error) { return d.expired, nil }
+
+// TestGCMetricsReportExpiredRelationships asserts that the expired-relationship
+// counter is registered with the GC metrics and carries the count reported by
+// DeleteExpiredRels. Registering it was previously missed, so the metric stayed
+// invisible to Prometheus even though GC updated it.
+func TestGCMetricsReportExpiredRelationships(t *testing.T) {
+	collectors, err := RegisterGCMetrics()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		for _, collector := range collectors {
+			prometheus.Unregister(collector)
+		}
+	})
+
+	const metricName = "spicedb_datastore_gc_expired_relationships_total"
+	before := gatherGCCounter(t, metricName)
+
+	require.NoError(t, RunGarbageCollection(
+		context.Background(),
+		newFakeGCStore(expiredOnlyDeleter{expired: 5}),
+		time.Minute,
+	))
+
+	require.InDelta(t, 5.0, gatherGCCounter(t, metricName)-before, 1e-9)
+}
+
+func gatherGCCounter(t *testing.T, name string) float64 {
+	t.Helper()
+
+	families, err := prometheus.DefaultGatherer.Gather()
+	require.NoError(t, err)
+
+	for _, family := range families {
+		if family.GetName() != name {
+			continue
+		}
+		var total float64
+		for _, metric := range family.GetMetric() {
+			total += metric.GetCounter().GetValue()
+		}
+		return total
+	}
+
+	t.Fatalf("%s is not registered", name)
+	return 0
+}
