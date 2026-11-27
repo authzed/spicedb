@@ -80,7 +80,7 @@ func RegisterServeFlags(cmd *cobra.Command, config *server.Config) error {
 
 	// Flags for the gRPC API server
 	util.RegisterGRPCServerFlags(grpcFlagSet, &config.GRPCServer, "grpc", "gRPC", ":50051", true)
-	grpcFlagSet.StringSliceVar(&config.PresharedSecureKey, PresharedKeyFlag, []string{}, "(required) preshared key(s) that must be provided by clients to authenticate requests")
+	grpcFlagSet.StringSliceVar(&config.PresharedSecureKey, PresharedKeyFlag, []string{}, "(required) preshared key(s) that must be provided by clients to authenticate requests. Any configured key is accepted; the first key is also used to authenticate dispatch requests sent to other SpiceDB nodes, so list order matters when rotating keys")
 	if err := cobra.MarkFlagRequired(grpcFlagSet, PresharedKeyFlag); err != nil {
 		return fmt.Errorf("failed to mark flag as required: %w", err)
 	}
