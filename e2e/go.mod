@@ -5,7 +5,7 @@ go 1.27.4
 replace github.com/authzed/spicedb => ../
 
 require (
-	github.com/authzed/authzed-go v1.11.1-0.20261120130125-380614b108c9
+	github.com/authzed/authzed-go v1.11.1-0.20261127115002-a63d5fb80238
 	github.com/authzed/grpcutil v0.0.0-20240123194739-2ea1e3d2d98b
 	github.com/authzed/spicedb v1.29.5
 	github.com/brianvoe/gofakeit/v6 v6.28.0
