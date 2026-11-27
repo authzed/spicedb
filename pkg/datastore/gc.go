@@ -67,6 +67,7 @@ func RegisterGCMetrics() ([]prometheus.Collector, error) {
 	collectors := []prometheus.Collector{
 		gcDurationHistogram,
 		gcRelationshipsCounter,
+		gcExpiredRelationshipsCounter,
 		gcTransactionsCounter,
 		gcNamespacesCounter,
 		gcFailureCounter,
