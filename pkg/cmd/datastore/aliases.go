@@ -70,6 +70,7 @@ var (
 	WithEnableRevisionHeartbeat              = dsconfig.WithEnableRevisionHeartbeat
 	WithEngine                               = dsconfig.WithEngine
 	WithExperimentalColumnOptimization       = dsconfig.WithExperimentalColumnOptimization
+	WithExperimentalStableHeadRevision       = dsconfig.WithExperimentalStableHeadRevision
 	WithFilterMaximumIDCount                 = dsconfig.WithFilterMaximumIDCount
 	WithFollowerReadDelay                    = dsconfig.WithFollowerReadDelay
 	WithGCInterval                           = dsconfig.WithGCInterval
