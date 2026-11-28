@@ -2,16 +2,19 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/authzed/spicedb/internal/datastore/common"
 	"github.com/authzed/spicedb/internal/datastore/postgres/schema"
+	log "github.com/authzed/spicedb/internal/logging"
 	"github.com/authzed/spicedb/pkg/datastore"
 	"github.com/authzed/spicedb/pkg/spiceerrors"
 )
@@ -105,6 +108,10 @@ func (pgg *pgGarbageCollector) TxIDBefore(ctx context.Context, before time.Time)
 	var value xid8
 	var snapshot pgSnapshot
 	err = pgg.conn.QueryRow(ctx, sql, args...).Scan(&value, &snapshot)
+	if errors.Is(err, pgx.ErrNoRows) {
+		log.Ctx(ctx).Debug().Time("before", before).Msg("no stale transactions found in the datastore")
+		return datastore.NoRevision, nil
+	}
 	if err != nil {
 		return datastore.NoRevision, err
 	}
@@ -143,6 +150,10 @@ type exec interface {
 func (pgg *pgGarbageCollector) DeleteBeforeTx(ctx context.Context, txID datastore.Revision) (datastore.DeletionCounts, error) {
 	if pgg.isClosed {
 		return datastore.DeletionCounts{}, spiceerrors.MustBugf("pgGarbageCollector is closed")
+	}
+
+	if txID == datastore.NoRevision {
+		return datastore.DeletionCounts{}, nil
 	}
 
 	return pgg.deleteBeforeTx(ctx, pgg.conn, txID)
