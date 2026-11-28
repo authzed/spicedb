@@ -108,9 +108,9 @@ homebrew_casks:
     # is free of malware"). Strip the quarantine attribute on install.
     hooks:
       post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/spicedb"]
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/spicedb"]
           end
 dockers_v2:
   # Standard images
