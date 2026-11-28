@@ -228,7 +228,10 @@ func (c *completedGRPCServer) Run(ctx context.Context) error {
 			return err
 		}
 	}
-	return c.srv.Serve(c.listener)
+	if err := c.srv.Serve(c.listener); !errors.Is(err, grpc.ErrServerStopped) {
+		return err
+	}
+	return nil
 }
 
 func (c *completedGRPCServer) BufferedListener() *bufconn.Listener {
