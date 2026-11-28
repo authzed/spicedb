@@ -25,6 +25,13 @@ func TestDisabledGRPC(t *testing.T) {
 	s.GracefulStop()
 }
 
+func TestGRPCRunAfterGracefulStop(t *testing.T) {
+	s, err := (&GRPCServerConfig{Enabled: true, Network: BufferedNetwork}).Complete(zerolog.InfoLevel, func(*grpc.Server) {})
+	require.NoError(t, err)
+	s.GracefulStop()
+	require.NoError(t, s.Run(t.Context()))
+}
+
 func TestDisabledHTTP(t *testing.T) {
 	s, err := (&HTTPServerConfig{HTTPEnabled: false}).Complete(zerolog.InfoLevel, nil)
 	require.NoError(t, err)
